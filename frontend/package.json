@@ -6,7 +6,7 @@
  "scripts": {
     "dev": "concurrently -n \"FRONTEND,BACKEND\" -c \"cyan,yellow\" \"npm:start-front\" \"npm:start-back\"",
     "start-front": "vite",
-    "start-back": "cd ../EduMind_Backend && .\\venv\\Scripts\\python -m uvicorn main:app --reload",
+    "start-back": "cd ../backend && .\\venv\\Scripts\\python -m uvicorn main:app --reload",
     "build": "vite build",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
