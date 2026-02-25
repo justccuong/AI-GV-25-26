@@ -53,8 +53,11 @@ export default function EditableNode({ data, selected, id }) {
   }, [fontSizePx, notifyChange]);
 
   const handleTextClick = useCallback((e) => {
+    // Nếu chưa select thì return luôn, thả cho sự kiện bay lên để React Flow bôi xanh node!
+    if (!selected) return; 
+
+    // Đã select rồi thì mới chặn lại để bật chế độ Edit (không cho drag lung tung)
     e.stopPropagation();
-    if (!selected) return;
     setIsEditing(true);
     setTimeout(() => {
       if (contentRef.current) {
@@ -93,6 +96,8 @@ export default function EditableNode({ data, selected, id }) {
   const nodeStyle = data.style || {};
   const isConnectSource = data.isConnectSource === true;
 
+ // File: frontend/src/components/EditableNode.jsx
+
   return (
     <div
       className="relative w-full h-full"
@@ -104,7 +109,7 @@ export default function EditableNode({ data, selected, id }) {
         alignItems: 'center',
         textAlign: 'center',
         boxSizing: 'border-box',
-        cursor: 'move',
+        cursor: 'move', // Cho con trỏ thành icon kéo cho oách
         ...(isConnectSource
           ? { boxShadow: '0 0 0 3px #22c55e', borderRadius: 'inherit' }
           : {}),
@@ -122,7 +127,7 @@ export default function EditableNode({ data, selected, id }) {
       {selected && (
         <div
           ref={toolbarRef}
-          className="rich-text-toolbar nodrag"
+          className="rich-text-toolbar nodrag" // Toolbar thì luôn cấm kéo để bấm nút cho chuẩn
           style={{
             position: 'absolute',
             bottom: '100%',
@@ -131,12 +136,8 @@ export default function EditableNode({ data, selected, id }) {
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <button type="button" onClick={() => execCommand('bold')} title="Bold">
-            B
-          </button>
-          <button type="button" onClick={() => execCommand('italic')} title="Italic">
-            I
-          </button>
+          <button type="button" onClick={() => execCommand('bold')} title="Bold">B</button>
+          <button type="button" onClick={() => execCommand('italic')} title="Italic">I</button>
           <select
             value={fontSizePx}
             onChange={(e) => applyFontSize(e.target.value)}
@@ -144,23 +145,21 @@ export default function EditableNode({ data, selected, id }) {
             className="nodrag"
           >
             {FONT_SIZE_OPTIONS.map((px) => (
-              <option key={px} value={px}>
-                {px} px
-              </option>
+              <option key={px} value={px}>{px} px</option>
             ))}
           </select>
         </div>
       )}
 
-      {/* Text content area - nodrag, cursor text */}
+      {/* CHỖ FIX CỰC MẠNH ĐÂY NÈ HOÀNG TỬ: Chỉ nodrag khi isEditing = true */}
       <div
-        className="mindmap-node-content nodrag"
+        className={`mindmap-node-content ${isEditing ? 'nodrag' : ''}`}
         style={{
-          color: nodeStyle.color || 'white',
-          fontFamily: nodeStyle.fontFamily || 'Segoe UI, sans-serif',
-          fontWeight: nodeStyle.fontWeight || '500',
+          color: nodeStyle.color || 'inherit', // Thừa hưởng màu từ theme, hết trắng tinh nhé!
+          fontFamily: nodeStyle.fontFamily || 'inherit',
+          fontWeight: nodeStyle.fontWeight || 'inherit',
           padding: '10px',
-          cursor: 'text',
+          cursor: isEditing ? 'text' : 'move',
           width: '100%',
           height: '100%',
           display: 'flex',
@@ -188,11 +187,11 @@ export default function EditableNode({ data, selected, id }) {
           />
         ) : (
           <div
-            className="mindmap-node-content nodrag"
+            className="mindmap-node-content" // Bỏ nodrag ở đây để tha hồ kéo node!
             style={{
               fontSize: `${typeof data.fontSize === 'number' ? data.fontSize : fontSizePx}px`,
               color: 'inherit',
-              cursor: selected ? 'text' : 'inherit',
+              cursor: selected ? 'text' : 'move',
               width: '100%',
             }}
             dangerouslySetInnerHTML={{

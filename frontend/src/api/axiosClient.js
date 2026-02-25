@@ -1,15 +1,16 @@
 import axios from 'axios';
 
-// Tạo một instance "chính chủ" cho dự án
+// Dùng biến môi trường, nếu không có thì fallback về localhost (port 8000 của FastAPI)
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+
 const axiosClient = axios.create({
-  baseURL: 'http://127.0.0.1:8000', // Địa chỉ Backend Python
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000, // Đợi tối đa 30s, lâu quá thì báo lỗi
+  timeout: 60000, // Tăng lên 60s, cho AI có thêm thời gian "suy nghĩ" 🧠
 });
 
-// Cấu hình riêng cho việc Upload file (cần header multipart)
 export const uploadImage = async (file) => {
   const formData = new FormData();
   formData.append('file', file);

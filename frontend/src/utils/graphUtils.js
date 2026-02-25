@@ -86,7 +86,9 @@ export const processMindMapData = (rootNode, themeId = DEFAULT_THEME_ID) => {
     themeId === 'pink'
       ? ['#ec4899', '#f472b6', '#f9a8d4', '#fbcfe8', '#fce7f3', '#fdf2f8']
       : themeId === 'default'
-        ? ['#64748b', '#94a3b8', '#cbd5e1', '#e2e8f0', '#f1f5f9', '#f8fafc']
+        // 🌈 7 sắc cầu vồng Pastel - Mix Nóng/Lạnh cực dịu mắt cho Hoàng tử
+        // Thứ tự: Hồng (Nóng) -> Xanh lục (Lạnh) -> Cam (Nóng) -> Xanh dương (Lạnh) -> Vàng (Nóng) -> Tím (Lạnh) -> Xanh lá (Lạnh)
+        ? ['#fda4af', '#67e8f9', '#fcd34d', '#93c5fd', '#f9a8d4', '#c4b5fd', '#6ee7b7']
         : ['#06b6d4', '#22d3ee', '#0ea5e9', '#38bdf8', '#7dd3fc', '#bae6fd'];
 
   const traverse = (node, parentId = null, currentBranchColor = null) => {
@@ -132,8 +134,9 @@ export const processMindMapData = (rootNode, themeId = DEFAULT_THEME_ID) => {
     } else {
       nodeStyle = {
         ...nodeStyle,
-        background: t.childBg,
+        background: borderColor,
         border: `1px solid ${borderColor}`,
+        color: '#ffffff',
       };
     }
 

@@ -14,21 +14,21 @@ export const DEFAULT_THEME_ID = THEME_IDS.DEFAULT;
 export const themes = {
   [THEME_IDS.DEFAULT]: {
     id: THEME_IDS.DEFAULT,
-    name: 'Default (Light)',
-    background: '#f8fafc',
-    backgroundPattern: '#e2e8f0',
+    name: 'Rainbow (Light)', // Đổi tên cho oách 😎
+    background: '#ffffff', // Nền trắng tinh
+    backgroundPattern: '#f1f5f9', // Pattern màu xám nhạt để dễ nhìn
     node: {
       rootBg: 'linear-gradient(145deg, #ffffff 0%, #f1f5f9 100%)',
-      rootBorder: '2px solid #94a3b8',
-      rootTextColor: '#1e293b',
+      rootBorder: '2px solid #334155', // Đổi viền root thành màu đậm
+      rootTextColor: '#0f172a', // Chữ root màu đen/tối để nổi bật
       childBg: '#ffffff',
-      childBorder: '1px solid #cbd5e1',
-      textColor: '#1e293b',
+      childBorder: '1px solid #cbd5e1', // Child sẽ dùng viền theo màu cầu vồng ở graphUtils
+      textColor: '#000000', // Đảm bảo chữ trên các node con luôn tối màu
       fontFamily: 'Segoe UI, sans-serif',
       boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
     },
     edge: {
-      stroke: '#64748b',
+      stroke: '#94a3b8',
       strokeWidth: 3,
       filter: 'none',
     },
@@ -80,3 +80,4 @@ export const themes = {
 export function getTheme(themeId) {
   return themes[themeId] || themes[DEFAULT_THEME_ID];
 }
+
