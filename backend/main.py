@@ -6,6 +6,15 @@ from dotenv import load_dotenv
 from PIL import Image
 import io
 
+from database import engine, get_db
+import models
+from sqlalchemy.orm import Session
+
+from fastapi import HTTPException, Depends
+import schemas
+import auth
+import models
+
 # 1. Load cái chìa khóa từ file .env
 load_dotenv()
 api_key = os.getenv("GEMINI_API_KEY")
@@ -14,14 +23,16 @@ api_key = os.getenv("GEMINI_API_KEY")
 genai.configure(api_key=api_key)
 model = genai.GenerativeModel('gemini-2.5-flash') # Dùng bản Flash cho nhanh và Free
 
+models.Base.metadata.create_all(bind=engine)
+
 # 3. Khởi tạo App FastAPI
 app = FastAPI()
 
 # 4. Cấp quyền cho ReactJS (sau này sẽ dùng) gọi vào đây
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Tạm thời cho phép tất cả các nguồn
-    allow_credentials=True,
+    allow_origins=["*"],  # Tương đương: res.header("Access-Control-Allow-Origin", "*");
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -74,3 +85,34 @@ async def analyze_note(file: UploadFile = File(...)):
     
     except Exception as e:
         return {"error": str(e)}
+    
+@app.post("/register", response_model=schemas.Token)
+def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    # 1. Kiểm tra xem email đã tồn tại chưa
+    db_user = db.query(models.User).filter(models.User.email == user.email).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Email này đã được đăng ký rồi nha!")
+    
+    # 2. Băm mật khẩu và lưu vào DB
+    hashed_pw = auth.get_password_hash(user.password)
+    new_user = models.User(email=user.email, hashed_password=hashed_pw)
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    # 3. Trả về Token luôn cho nóng
+    access_token = auth.create_access_token(data={"sub": new_user.email})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/login", response_model=schemas.Token)
+def login_user(user: schemas.UserLogin, db: Session = Depends(get_db)):
+    # 1. Tìm user theo email
+    db_user = db.query(models.User).filter(models.User.email == user.email).first()
+    
+    # 2. Kiểm tra user có tồn tại và mật khẩu có khớp không
+    if not db_user or not auth.verify_password(user.password, db_user.hashed_password):
+        raise HTTPException(status_code=401, detail="Sai email hoặc mật khẩu rồi đồ ngốc!")
+    
+    # 3. Cấp Token
+    access_token = auth.create_access_token(data={"sub": db_user.email})
+    return {"access_token": access_token, "token_type": "bearer"}

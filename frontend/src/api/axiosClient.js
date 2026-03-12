@@ -22,4 +22,15 @@ export const uploadImage = async (file) => {
   });
 };
 
+export const loginUser = async (email, password) => {
+  // Lại phải dặn: Nhớ cái baseURL http://127.0.0.1:8000 của FastAPI nhé!
+  const response = await axios.post(`http://127.0.0.1:8000/login`, { email, password });
+  return response.data;
+};
+
+export const registerUser = async (email, password) => {
+  const response = await axios.post(`http://127.0.0.1:8000/register`, { email, password });
+  return response.data;
+};
+
 export default axiosClient;
