@@ -1,0 +1,122 @@
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+/* Mind map / editable node: prevent text overflow, wrap correctly */
+.mindmap-node-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  overflow: hidden;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.mindmap-node-content [contenteditable] {
+  outline: none;
+  width: 100%;
+  max-width: 100%;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Rich text toolbar */
+.rich-text-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  background: #1e293b;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  z-index: 1000;
+}
+
+.rich-text-toolbar button {
+  width: 32px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #e2e8f0;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.rich-text-toolbar button:hover {
+  background: #334155;
+}
+
+.rich-text-toolbar select {
+  height: 28px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 4px;
+  background: #334155;
+  color: #e2e8f0;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* Nodrag: prevent React Flow drag when interacting with text */
+.nodrag {
+  cursor: text !important;
+}
+
+/* Node border/padding area should allow drag */
+.react-flow__node {
+  cursor: move;
+}
+
+.react-flow__node .nodrag {
+  cursor: text;
+}
