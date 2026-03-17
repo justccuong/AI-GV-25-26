@@ -1,17 +1,25 @@
-# backend/database.py
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
-from dotenv import load_dotenv
 
-# Load biến môi trường từ .env
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover
+    def load_dotenv(*_args, **_kwargs):
+        return False
+
 load_dotenv()
 
-# Lấy chuỗi kết nối
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
+if not SQLALCHEMY_DATABASE_URL:
+    default_sqlite_path = os.path.join(os.path.dirname(__file__), "mindmap.db")
+    SQLALCHEMY_DATABASE_URL = f"sqlite:///{default_sqlite_path}"
 
-# ĐÂY! CÁI DÒNG MÀ NÓ BÁO THIẾU CHÍNH LÀ DÒNG NÀY ĐÂY!
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+engine_options = {"pool_pre_ping": True}
+if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+    engine_options["connect_args"] = {"check_same_thread": False}
+
+engine = create_engine(SQLALCHEMY_DATABASE_URL, **engine_options)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+﻿import React, { useMemo, useState } from 'react';
 import { ChevronDown, LogOut, PanelLeftOpen, Settings, Sparkles, UserCircle2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -74,17 +74,15 @@ export default function Header() {
           </div>
           <div className="text-left">
             <p className="text-[11px] uppercase tracking-[0.28em] text-cyan-300/80">EduMind Studio</p>
-            <h1 className="text-lg font-semibold tracking-tight text-white">
-              Mind Map Workspace
-            </h1>
+            <h1 className="text-lg font-semibold tracking-tight text-white">Không gian Mindmap</h1>
           </div>
         </button>
 
         {isLoggedIn && (
           <nav className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 p-1 lg:flex">
-            <NavPill active={isWorkspaceActive} label="Workspace/Editor" onClick={() => navigate('/workspace')} />
-            <NavPill active={isDiagramsActive} label="My Diagrams" onClick={() => navigate('/diagrams')} />
-            <NavPill active={isSettingsActive} label="Settings" onClick={() => navigate('/settings')} />
+            <NavPill active={isWorkspaceActive} label="Không gian vẽ" onClick={() => navigate('/workspace')} />
+            <NavPill active={isDiagramsActive} label="Sơ đồ của tôi" onClick={() => navigate('/diagrams')} />
+            <NavPill active={isSettingsActive} label="Cài đặt" onClick={() => navigate('/settings')} />
           </nav>
         )}
 
@@ -100,8 +98,8 @@ export default function Header() {
                   {initials}
                 </div>
                 <div className="hidden sm:block">
-                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Signed in</p>
-                  <p className="max-w-52 truncate text-sm font-medium text-white">{email || 'Workspace User'}</p>
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Đã đăng nhập</p>
+                  <p className="max-w-52 truncate text-sm font-medium text-white">{email || 'Người dùng không gian vẽ'}</p>
                 </div>
                 <ChevronDown className="h-4 w-4 text-slate-400" />
               </button>
@@ -114,8 +112,8 @@ export default function Header() {
                         <UserCircle2 className="h-6 w-6" />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-white">{email || 'Workspace User'}</p>
-                        <p className="text-xs text-slate-400">React Flow + AI workspace</p>
+                        <p className="text-sm font-semibold text-white">{email || 'Người dùng không gian vẽ'}</p>
+                        <p className="text-xs text-slate-400">React Flow + trợ lý AI</p>
                       </div>
                     </div>
 
@@ -129,7 +127,7 @@ export default function Header() {
                         className="flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-sm text-slate-200 transition-colors hover:bg-white/10"
                       >
                         <PanelLeftOpen className="h-4 w-4 text-cyan-300" />
-                        My Diagrams
+                        Sơ đồ của tôi
                       </button>
                       <button
                         type="button"
@@ -140,7 +138,7 @@ export default function Header() {
                         className="flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-sm text-slate-200 transition-colors hover:bg-white/10"
                       >
                         <Settings className="h-4 w-4 text-cyan-300" />
-                        Settings
+                        Cài đặt
                       </button>
                       <button
                         type="button"
@@ -148,7 +146,7 @@ export default function Header() {
                         className="flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-sm text-rose-200 transition-colors hover:bg-rose-500/10"
                       >
                         <LogOut className="h-4 w-4" />
-                        Sign out
+                        Đăng xuất
                       </button>
                     </div>
                   </div>
@@ -162,14 +160,14 @@ export default function Header() {
                 onClick={() => navigate('/login')}
                 className="rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-slate-200 transition-colors hover:bg-white/5"
               >
-                Log in
+                Đăng nhập
               </button>
               <button
                 type="button"
                 onClick={() => navigate('/register')}
                 className="rounded-full bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition-transform hover:scale-[1.02]"
               >
-                Create account
+                Tạo tài khoản
               </button>
             </div>
           )}

@@ -1,4 +1,4 @@
-import os
+﻿import os
 from datetime import datetime, timedelta, timezone
 
 import jwt
@@ -39,7 +39,7 @@ def decode_access_token(token: str) -> dict:
     except jwt.PyJWTError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail='Invalid or expired access token.',
+            detail='Access token không hợp lệ hoặc đã hết hạn.',
         ) from exc
 
 
@@ -50,7 +50,7 @@ def get_current_user(
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail='Authentication required.',
+            detail='Vui lòng đăng nhập để tiếp tục.',
         )
 
     payload = decode_access_token(credentials.credentials)
@@ -59,7 +59,7 @@ def get_current_user(
     if not email:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail='Invalid token payload.',
+            detail='Thông tin token không hợp lệ.',
         )
 
     user = db.query(models.User).filter(models.User.email == email).first()
@@ -67,7 +67,8 @@ def get_current_user(
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail='User no longer exists.',
+            detail='Tài khoản người dùng không còn tồn tại.',
         )
 
     return user
+

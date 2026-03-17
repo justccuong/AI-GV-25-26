@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { X, Palette, Type, Minus, GitBranch, Move } from 'lucide-react';
 
 const EDGE_TYPES = {
-  floating: 'Bezier (Floating)',
+  floating: 'Bezier nổi',
   bezier: 'Bezier',
-  straight: 'Straight',
-  step: 'Step',
+  straight: 'Thẳng',
+  step: 'Bậc thang',
 };
 
 export default function EdgeSettingsPanel({ edge, onClose, onUpdate }) {
@@ -28,7 +28,7 @@ export default function EdgeSettingsPanel({ edge, onClose, onUpdate }) {
       onUpdate({
         ...edge,
         type: edgeType,
-        label: label.trim() || undefined,
+        label: typeof label === 'string' ? label.trim() : '',
         markerEnd: edge.markerEnd || { type: 'arrowclosed' },
         style: {
           ...edge.style,
@@ -37,129 +37,127 @@ export default function EdgeSettingsPanel({ edge, onClose, onUpdate }) {
         },
       });
     }
+
     onClose();
   };
 
-  const handleCancel = () => {
-    onClose();
-  };
-
-  if (!edge) return null;
+  if (!edge) {
+    return null;
+  }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={handleCancel}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div
-        className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4"
-        onClick={(e) => e.stopPropagation()}
+        className="mx-4 w-full max-w-md rounded-xl bg-white p-6 shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-            <GitBranch className="w-5 h-5" />
-            Edge Settings
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-xl font-bold text-gray-800">
+            <GitBranch className="h-5 w-5" />
+            Tùy chỉnh cạnh nối
           </h2>
           <button
-            onClick={handleCancel}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            type="button"
+            onClick={onClose}
+            className="text-gray-400 transition-colors hover:text-gray-600"
+            aria-label="Đóng bảng tùy chỉnh cạnh"
           >
-            <X className="w-5 h-5" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Edge Type */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-            <Move className="w-4 h-4" />
-            Line Type
+          <label className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700">
+            <Move className="h-4 w-4" />
+            Kiểu đường nối
           </label>
-          <div className="grid grid-cols-3 gap-2">
-            {Object.entries(EDGE_TYPES).map(([key, label]) => (
+          <div className="grid grid-cols-2 gap-2">
+            {Object.entries(EDGE_TYPES).map(([key, typeLabel]) => (
               <button
                 key={key}
                 type="button"
                 onClick={() => setEdgeType(key)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
                   edgeType === key
                     ? 'bg-indigo-600 text-white shadow-md'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                {label}
+                {typeLabel}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Stroke Width */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-            <Minus className="w-4 h-4" />
-            Thickness: {strokeWidth}px
+          <label className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700">
+            <Minus className="h-4 w-4" />
+            Độ dày: {strokeWidth}px
           </label>
           <input
             type="range"
             min="1"
             max="10"
             value={strokeWidth}
-            onChange={(e) => setStrokeWidth(e.target.value)}
-            className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+            onChange={(event) => setStrokeWidth(event.target.value)}
+            className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-200"
           />
         </div>
 
-        {/* Stroke Color */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-            <Palette className="w-4 h-4" />
-            Color
+          <label className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700">
+            <Palette className="h-4 w-4" />
+            Màu sắc
           </label>
           <div className="flex items-center gap-3">
             <input
               type="color"
               value={strokeColor}
-              onChange={(e) => setStrokeColor(e.target.value)}
-              className="w-12 h-12 rounded-lg border-2 border-slate-300 cursor-pointer"
+              onChange={(event) => setStrokeColor(event.target.value)}
+              className="h-12 w-12 cursor-pointer rounded-lg border-2 border-slate-300"
             />
             <input
               type="text"
               value={strokeColor}
-              onChange={(e) => setStrokeColor(e.target.value)}
-              className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              onChange={(event) => setStrokeColor(event.target.value)}
+              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               placeholder="#64748b"
             />
           </div>
         </div>
 
-        {/* Label */}
         <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-            <Type className="w-4 h-4" />
-            Label Text
+          <label className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700">
+            <Type className="h-4 w-4" />
+            Nhãn cạnh
           </label>
           <input
             type="text"
             value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            placeholder="Enter edge label..."
+            onChange={(event) => setLabel(event.target.value)}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder="Để trống nếu không cần hiển thị"
           />
         </div>
 
-        {/* Actions */}
         <div className="flex gap-3">
           <button
-            onClick={handleCancel}
-            className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-colors"
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-lg bg-slate-100 px-4 py-2 font-medium text-slate-700 transition-colors hover:bg-slate-200"
           >
-            Cancel
+            Hủy
           </button>
           <button
+            type="button"
             onClick={handleSave}
-            className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors"
+            className="flex-1 rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white transition-colors hover:bg-indigo-700"
           >
-            Save Changes
+            Lưu thay đổi
           </button>
         </div>
       </div>
     </div>
   );
 }
+

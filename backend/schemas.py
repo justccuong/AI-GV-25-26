@@ -1,4 +1,4 @@
-from datetime import datetime
+﻿from datetime import datetime
 from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
@@ -20,12 +20,12 @@ class Token(BaseModel):
 
 
 class MindMapCreate(BaseModel):
-    title: str = 'Untitled diagram'
+    title: str = 'Sơ đồ chưa đặt tên'
     data: Dict[str, Any] = Field(default_factory=dict)
 
 
 class MindMapUpdate(BaseModel):
-    title: str = 'Untitled diagram'
+    title: str = 'Sơ đồ chưa đặt tên'
     data: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -53,3 +53,4 @@ class AssistantMindMapResponse(BaseModel):
     title: Optional[str] = None
     message: str
     diagram: Dict[str, Any] = Field(default_factory=dict)
+

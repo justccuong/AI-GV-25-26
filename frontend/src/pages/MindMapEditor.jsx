@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { applyEdgeChanges, applyNodeChanges } from 'reactflow';
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -21,15 +21,19 @@ import UploadPanel from '../components/UploadPanel';
 import {
   applyThemeToDiagram,
   autoLayoutDiagram,
+  mergeAssistantDiagram,
   normalizeSavedDiagram,
   processMindMapData,
 } from '../utils/graphUtils';
-import { DEFAULT_THEME_ID } from '../utils/themeConfig';
+import { DEFAULT_THEME_ID, getTheme } from '../utils/themeConfig';
+
+const DEFAULT_DIAGRAM_TITLE = 'Sơ đồ chưa đặt tên';
 
 const INITIAL_ASSISTANT_MESSAGE = {
   id: 'assistant-welcome',
   role: 'assistant',
-  content: 'Ask me to generate a new mind map or restructure the current one. I will return diagram data that updates the React Flow canvas directly.',
+  content:
+    'Mình có thể đọc sơ đồ hiện tại, thêm nhánh mới, tinh gọn bố cục hoặc dựng lại mindmap từ prompt của bạn. Mọi cập nhật sẽ được áp dụng trực tiếp lên canvas.',
 };
 
 function createBlankSnapshot(themeId = DEFAULT_THEME_ID) {
@@ -52,6 +56,24 @@ function createMessage(role, content) {
   };
 }
 
+function hasPersistableContent(snapshot, title = '') {
+  void title;
+  return snapshot.nodes.length > 0 || snapshot.edges.length > 0;
+}
+
+function resolveAssistantSnapshot(response, currentNodes, currentEdges, fallbackThemeId) {
+  const diagramPayload = response?.diagram || response?.root || response;
+  const resolvedThemeId = diagramPayload?.themeId || response?.themeId || fallbackThemeId;
+  const nextSnapshot = mergeAssistantDiagram(currentNodes, currentEdges, diagramPayload, resolvedThemeId);
+
+  return {
+    nodes: nextSnapshot.nodes,
+    edges: nextSnapshot.edges,
+    themeId: resolvedThemeId,
+    mode: diagramPayload?.mode || (diagramPayload?.root || diagramPayload?.children ? 'replace' : 'merge'),
+  };
+}
+
 export default function MindMapEditor() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -60,7 +82,7 @@ export default function MindMapEditor() {
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
   const [themeId, setThemeId] = useState(DEFAULT_THEME_ID);
-  const [diagramTitle, setDiagramTitle] = useState('Untitled diagram');
+  const [diagramTitle, setDiagramTitle] = useState(DEFAULT_DIAGRAM_TITLE);
   const [currentDiagramId, setCurrentDiagramId] = useState(null);
   const [diagrams, setDiagrams] = useState([]);
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(location.pathname === '/diagrams');
@@ -73,16 +95,20 @@ export default function MindMapEditor() {
   const [chatMessages, setChatMessages] = useState([INITIAL_ASSISTANT_MESSAGE]);
   const [isDirty, setIsDirty] = useState(false);
   const [historyState, setHistoryState] = useState({ canUndo: false, canRedo: false });
+  const [fitViewNonce, setFitViewNonce] = useState(0);
 
   const historyRef = useRef([]);
   const futureRef = useRef([]);
   const lastHistorySerializedRef = useRef('');
   const savedSnapshotRef = useRef(serializeSnapshot(createBlankSnapshot(DEFAULT_THEME_ID)));
-  const savedTitleRef = useRef('Untitled diagram');
+  const savedTitleRef = useRef(DEFAULT_DIAGRAM_TITLE);
   const isRestoringRef = useRef(false);
+  const saveInFlightRef = useRef(false);
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
   const themeRef = useRef(themeId);
+  const activeTheme = useMemo(() => getTheme(themeId), [themeId]);
+  const shellTheme = activeTheme.shell || {};
 
   useEffect(() => {
     nodesRef.current = nodes;
@@ -109,6 +135,10 @@ export default function MindMapEditor() {
     });
   }, []);
 
+  const requestViewportFit = useCallback(() => {
+    setFitViewNonce((current) => current + 1);
+  }, []);
+
   const resetHistory = useCallback(
     (snapshot) => {
       const nextSnapshot = cloneSnapshot(snapshot);
@@ -123,7 +153,7 @@ export default function MindMapEditor() {
   const applySnapshot = useCallback(
     (snapshot, options = {}) => {
       const {
-        title = 'Untitled diagram',
+        title = DEFAULT_DIAGRAM_TITLE,
         diagramId = null,
         reset = true,
         markAsSaved = false,
@@ -138,7 +168,10 @@ export default function MindMapEditor() {
       setCurrentDiagramId(diagramId);
       setShowUploadPanel(false);
       setAssistantState({ loading: false, error: '' });
-      setSaveState({ status: markAsSaved ? 'saved' : 'idle', message: markAsSaved ? 'Diagram loaded.' : '' });
+      setSaveState({
+        status: markAsSaved ? 'saved' : 'idle',
+        message: markAsSaved ? 'Đã tải sơ đồ thành công.' : '',
+      });
 
       if (markAsSaved) {
         savedSnapshotRef.current = serializeSnapshot({
@@ -155,9 +188,10 @@ export default function MindMapEditor() {
           edges: normalized.edges,
           themeId: normalized.themeId || DEFAULT_THEME_ID,
         });
+        requestViewportFit();
       }
     },
-    [resetHistory]
+    [requestViewportFit, resetHistory]
   );
 
   const refreshMindMaps = useCallback(async () => {
@@ -170,7 +204,7 @@ export default function MindMapEditor() {
     } catch (error) {
       setListState({
         loading: false,
-        error: getApiErrorMessage(error, 'Unable to load saved diagrams.'),
+        error: getApiErrorMessage(error, 'Không thể tải danh sách sơ đồ đã lưu.'),
       });
     }
   }, []);
@@ -183,7 +217,7 @@ export default function MindMapEditor() {
     async (diagramId, options = {}) => {
       const { shouldNavigate = true } = options;
 
-      setSaveState({ status: 'loading', message: 'Loading diagram...' });
+      setSaveState({ status: 'loading', message: 'Đang tải sơ đồ...' });
 
       try {
         const diagram = await getMindMap(diagramId);
@@ -195,7 +229,7 @@ export default function MindMapEditor() {
         });
         setChatMessages([
           INITIAL_ASSISTANT_MESSAGE,
-          createMessage('assistant', `Loaded "${diagram.title}". You can now ask me to expand or reorganize it.`),
+          createMessage('assistant', `Mình đã mở sơ đồ "${diagram.title}". Bạn có thể yêu cầu mình mở rộng hoặc sắp xếp lại sơ đồ này.`),
         ]);
 
         if (shouldNavigate) {
@@ -204,7 +238,7 @@ export default function MindMapEditor() {
       } catch (error) {
         setSaveState({
           status: 'error',
-          message: getApiErrorMessage(error, 'Unable to load the selected diagram.'),
+          message: getApiErrorMessage(error, 'Không thể mở sơ đồ đã chọn.'),
         });
       }
     },
@@ -323,61 +357,125 @@ export default function MindMapEditor() {
   }, []);
 
   const handleAutoLayout = useCallback(() => {
-    const layouted = autoLayoutDiagram(nodesRef.current, edgesRef.current, { direction: 'LR' }, themeRef.current);
+    const layouted = autoLayoutDiagram(nodesRef.current, edgesRef.current, {}, themeRef.current);
     setNodes(layouted.nodes);
     setEdges(layouted.edges);
-    setSaveState({ status: 'idle', message: 'Auto-layout applied.' });
-  }, []);
+    setSaveState({ status: 'idle', message: 'Đã áp dụng bố cục mindmap dạng tia.' });
+    requestViewportFit();
+  }, [requestViewportFit]);
 
   const handleCreateNew = useCallback(() => {
     const blank = createBlankSnapshot(DEFAULT_THEME_ID);
     applySnapshot(blank, {
-      title: 'Untitled diagram',
+      title: DEFAULT_DIAGRAM_TITLE,
       diagramId: null,
       reset: true,
       markAsSaved: false,
     });
     savedSnapshotRef.current = serializeSnapshot(blank);
-    savedTitleRef.current = 'Untitled diagram';
+    savedTitleRef.current = DEFAULT_DIAGRAM_TITLE;
     setChatMessages([INITIAL_ASSISTANT_MESSAGE]);
     navigate('/workspace');
   }, [applySnapshot, navigate]);
 
-  const handleSaveDiagram = useCallback(async () => {
-    const payload = {
-      title: diagramTitle.trim() || 'Untitled diagram',
-      data: {
+  const persistDiagram = useCallback(
+    async ({ mode = 'manual' } = {}) => {
+      if (saveInFlightRef.current) {
+        return null;
+      }
+
+      const snapshot = {
         nodes: nodesRef.current,
         edges: edgesRef.current,
         themeId: themeRef.current,
-      },
+      };
+      const resolvedTitle = diagramTitle.trim() || DEFAULT_DIAGRAM_TITLE;
+
+      if (!hasPersistableContent(snapshot, resolvedTitle)) {
+        if (mode === 'manual') {
+          setSaveState({ status: 'idle', message: 'Sơ đồ đang trống, chưa có gì để lưu.' });
+        }
+        return null;
+      }
+
+      const payload = {
+        title: resolvedTitle,
+        data: snapshot,
+      };
+
+      saveInFlightRef.current = true;
+      setSaveState({
+        status: 'saving',
+        message: mode === 'autosave' ? 'Đang tự lưu vào cơ sở dữ liệu...' : 'Đang lưu sơ đồ...',
+      });
+
+      try {
+        const response = currentDiagramId
+          ? await updateMindMap(currentDiagramId, payload)
+          : await createMindMap(payload);
+
+        setCurrentDiagramId(response.id);
+        setDiagramTitle(response.title);
+        savedSnapshotRef.current = serializeSnapshot(snapshot);
+        savedTitleRef.current = response.title;
+        setSaveState({
+          status: 'saved',
+          message:
+            mode === 'autosave'
+              ? 'Đã tự lưu sơ đồ vào cơ sở dữ liệu.'
+              : 'Đã lưu sơ đồ thành công.',
+        });
+        await refreshMindMaps();
+
+        if (mode === 'manual' || !currentDiagramId) {
+          navigate(`/editor/${response.id}`);
+        }
+
+        return response;
+      } catch (error) {
+        setSaveState({
+          status: 'error',
+          message: getApiErrorMessage(error, 'Lưu sơ đồ thất bại. Vui lòng thử lại.'),
+        });
+        return null;
+      } finally {
+        saveInFlightRef.current = false;
+      }
+    },
+    [currentDiagramId, diagramTitle, navigate, refreshMindMaps]
+  );
+
+  const handleSaveDiagram = useCallback(async () => {
+    await persistDiagram({ mode: 'manual' });
+  }, [persistDiagram]);
+
+  useEffect(() => {
+    if (
+      !isDirty ||
+      isRestoringRef.current ||
+      assistantState.loading ||
+      uploading ||
+      saveInFlightRef.current
+    ) {
+      return undefined;
+    }
+
+    const snapshot = {
+      nodes,
+      edges,
+      themeId,
     };
 
-    setSaveState({ status: 'saving', message: 'Saving diagram...' });
-
-    try {
-      const response = currentDiagramId
-        ? await updateMindMap(currentDiagramId, payload)
-        : await createMindMap(payload);
-
-      setCurrentDiagramId(response.id);
-      setDiagramTitle(response.title);
-      savedSnapshotRef.current = serializeSnapshot({
-        nodes: nodesRef.current,
-        edges: edgesRef.current,
-        themeId: themeRef.current,
-      });
-      savedTitleRef.current = response.title;
-      setSaveState({ status: 'saved', message: 'Diagram saved successfully.' });
-      await refreshMindMaps();
-      navigate(`/editor/${response.id}`);
-    } catch (error) {
-      setSaveState({
-        status: 'error',
-        message: getApiErrorMessage(error, 'Saving failed. Please try again.'),
-      });
+    if (!hasPersistableContent(snapshot, diagramTitle)) {
+      return undefined;
     }
-  }, [currentDiagramId, diagramTitle, navigate, refreshMindMaps]);
+
+    const timer = window.setTimeout(() => {
+      persistDiagram({ mode: 'autosave' });
+    }, 1400);
+
+    return () => window.clearTimeout(timer);
+  }, [assistantState.loading, diagramTitle, edges, isDirty, nodes, persistDiagram, themeId, uploading]);
 
   const handleRenameDiagram = useCallback(
     async (diagramId, title) => {
@@ -396,7 +494,7 @@ export default function MindMapEditor() {
       } catch (error) {
         setListState((current) => ({
           ...current,
-          error: getApiErrorMessage(error, 'Unable to rename the selected diagram.'),
+          error: getApiErrorMessage(error, 'Không thể đổi tên sơ đồ đã chọn.'),
         }));
       }
     },
@@ -405,7 +503,7 @@ export default function MindMapEditor() {
 
   const handleDeleteDiagram = useCallback(
     async (diagramId) => {
-      const shouldDelete = window.confirm('Delete this diagram permanently?');
+      const shouldDelete = window.confirm('Bạn có chắc muốn xóa vĩnh viễn sơ đồ này không?');
 
       if (!shouldDelete) {
         return;
@@ -423,123 +521,164 @@ export default function MindMapEditor() {
       } catch (error) {
         setListState((current) => ({
           ...current,
-          error: getApiErrorMessage(error, 'Unable to delete the selected diagram.'),
+          error: getApiErrorMessage(error, 'Không thể xóa sơ đồ đã chọn.'),
         }));
       }
     },
     [currentDiagramId, handleCreateNew]
   );
 
-  const handleUpload = useCallback(async (file) => {
-    setUploading(true);
-    setSaveState({ status: 'loading', message: 'Analyzing note image...' });
+  const handleUpload = useCallback(
+    async (file) => {
+      setUploading(true);
+      setSaveState({ status: 'loading', message: 'Đang phân tích ảnh ghi chú...' });
 
-    try {
-      const response = await uploadImage(file);
-      const root = response.root || response;
-      const generated = processMindMapData(root, themeRef.current);
+      try {
+        const response = await uploadImage(file);
+        const root = response.root || response;
+        const generated = processMindMapData(root, themeRef.current);
+        const nextTitle = response.title || root.label || 'Mindmap từ ghi chú';
 
-      applySnapshot(
-        {
-          nodes: generated.nodes,
-          edges: generated.edges,
-          themeId: themeRef.current,
-        },
-        {
-          title: response.title || root.label || 'Uploaded mind map',
-          diagramId: currentDiagramId,
-          reset: true,
-          markAsSaved: false,
+        applySnapshot(
+          {
+            nodes: generated.nodes,
+            edges: generated.edges,
+            themeId: themeRef.current,
+          },
+          {
+            title: nextTitle,
+            diagramId: currentDiagramId,
+            reset: true,
+            markAsSaved: false,
+          }
+        );
+        setDiagramTitle(nextTitle);
+        setChatMessages((currentMessages) => [
+          ...currentMessages,
+          createMessage('assistant', 'Mình đã đọc ảnh ghi chú và dựng lại canvas thành một mindmap có cấu trúc rõ ràng.'),
+        ]);
+        setSaveState({ status: 'idle', message: 'Canvas đã được cập nhật từ ảnh ghi chú.' });
+      } catch (error) {
+        setSaveState({
+          status: 'error',
+          message: getApiErrorMessage(error, 'Phân tích ảnh thất bại. Vui lòng thử lại với ảnh khác.'),
+        });
+      } finally {
+        setUploading(false);
+      }
+    },
+    [applySnapshot, currentDiagramId]
+  );
+
+  const handleAssistantPrompt = useCallback(
+    async (prompt) => {
+      setAssistantState({ loading: true, error: '' });
+      setChatMessages((currentMessages) => [...currentMessages, createMessage('user', prompt)]);
+
+      try {
+        const response = await generateAssistantMindMap({
+          prompt,
+          current_diagram: {
+            title: diagramTitle,
+            nodes: nodesRef.current,
+            edges: edgesRef.current,
+            themeId: themeRef.current,
+          },
+        });
+
+        const resolved = resolveAssistantSnapshot(
+          response,
+          nodesRef.current,
+          edgesRef.current,
+          themeRef.current
+        );
+        const nextTitle = response.title || response.diagram?.title || diagramTitle;
+
+        applySnapshot(
+          {
+            nodes: resolved.nodes,
+            edges: resolved.edges,
+            themeId: resolved.themeId,
+          },
+          {
+            title: nextTitle,
+            diagramId: currentDiagramId,
+            reset: true,
+            markAsSaved: false,
+          }
+        );
+
+        if (response.title) {
+          setDiagramTitle(response.title);
         }
-      );
-      setDiagramTitle(response.title || root.label || 'Uploaded mind map');
-      setChatMessages((currentMessages) => [
-        ...currentMessages,
-        createMessage('assistant', 'I analyzed your note image and rebuilt the canvas as a structured mind map.'),
-      ]);
-      setSaveState({ status: 'idle', message: 'Canvas updated from note scan.' });
-    } catch (error) {
-      setSaveState({
-        status: 'error',
-        message: getApiErrorMessage(error, 'Image analysis failed. Please try another image.'),
-      });
-    } finally {
-      setUploading(false);
-    }
-  }, [applySnapshot, currentDiagramId]);
 
-  const handleAssistantPrompt = useCallback(async (prompt) => {
-    setAssistantState({ loading: true, error: '' });
-    setChatMessages((currentMessages) => [...currentMessages, createMessage('user', prompt)]);
-
-    try {
-      const response = await generateAssistantMindMap({
-        prompt,
-        current_diagram: {
-          title: diagramTitle,
-          nodes: nodesRef.current,
-          edges: edgesRef.current,
-          themeId: themeRef.current,
-        },
-      });
-
-      const nextDiagram = normalizeSavedDiagram(response.diagram || response.root || response, themeRef.current);
-      applySnapshot(nextDiagram, {
-        title: response.title || response.diagram?.title || diagramTitle,
-        diagramId: currentDiagramId,
-        reset: true,
-        markAsSaved: false,
-      });
-
-      if (response.title) {
-        setDiagramTitle(response.title);
+        setChatMessages((currentMessages) => [
+          ...currentMessages,
+          createMessage(
+            'assistant',
+            response.message || 'Mình đã áp dụng cập nhật AI trực tiếp lên sơ đồ hiện tại.'
+          ),
+        ]);
+        setSaveState({
+          status: 'idle',
+          message:
+            resolved.mode === 'replace'
+              ? 'AI đã dựng lại toàn bộ sơ đồ trên canvas.'
+              : 'AI đã cập nhật sơ đồ hiện tại theo ngữ cảnh canvas.',
+        });
+      } catch (error) {
+        const message = getApiErrorMessage(error, 'Trợ lý AI chưa thể cập nhật sơ đồ lúc này.');
+        setAssistantState({ loading: false, error: message });
+        setChatMessages((currentMessages) => [
+          ...currentMessages,
+          createMessage('assistant', `Mình chưa thể cập nhật canvas: ${message}`),
+        ]);
+        return;
       }
 
-      setChatMessages((currentMessages) => [
-        ...currentMessages,
-        createMessage(
-          'assistant',
-          response.message || 'I generated a new mind map and applied it to the canvas.'
-        ),
-      ]);
-      setSaveState({ status: 'idle', message: 'AI update applied to the canvas.' });
-    } catch (error) {
-      const message = getApiErrorMessage(error, 'AI assistant failed to generate a diagram.');
-      setAssistantState({ loading: false, error: message });
-      setChatMessages((currentMessages) => [
-        ...currentMessages,
-        createMessage('assistant', `I could not update the canvas: ${message}`),
-      ]);
-      return;
-    }
-
-    setAssistantState({ loading: false, error: '' });
-  }, [applySnapshot, currentDiagramId, diagramTitle]);
+      setAssistantState({ loading: false, error: '' });
+    },
+    [applySnapshot, currentDiagramId, diagramTitle]
+  );
 
   const statusTone = useMemo(() => {
+    const isLightTheme = themeId === DEFAULT_THEME_ID;
+
     if (saveState.status === 'error') {
-      return 'border-rose-500/20 bg-rose-500/10 text-rose-100';
+      return isLightTheme
+        ? 'border-rose-400/30 bg-rose-100/80 text-rose-700'
+        : 'border-rose-500/20 bg-rose-500/10 text-rose-100';
     }
 
     if (saveState.status === 'saved') {
-      return 'border-emerald-500/20 bg-emerald-500/10 text-emerald-100';
+      return isLightTheme
+        ? 'border-emerald-400/30 bg-emerald-100/80 text-emerald-700'
+        : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-100';
     }
 
     if (saveState.status === 'saving' || saveState.status === 'loading') {
-      return 'border-cyan-500/20 bg-cyan-500/10 text-cyan-100';
+      return isLightTheme
+        ? 'border-sky-400/30 bg-sky-100/80 text-sky-700'
+        : 'border-cyan-500/20 bg-cyan-500/10 text-cyan-100';
     }
 
     return 'border-white/10 bg-white/5 text-slate-200';
-  }, [saveState.status]);
+  }, [saveState.status, themeId]);
 
   return (
-    <div className="flex h-full overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.14),_transparent_38%),linear-gradient(180deg,_#020617,_#0f172a_48%,_#020617)]">
+    <div
+      className="flex h-full overflow-hidden"
+      style={{
+        background: shellTheme.workspaceBg,
+      }}
+    >
       <DiagramSidebar
         isOpen={leftSidebarOpen}
         diagrams={diagrams}
         activeDiagramId={currentDiagramId}
         loading={listState.loading}
         error={listState.error}
+        themeId={themeId}
         onToggle={() => setLeftSidebarOpen((current) => !current)}
         onCreateNew={handleCreateNew}
         onOpenDiagram={(diagramId) => loadDiagram(diagramId)}
@@ -548,23 +687,53 @@ export default function MindMapEditor() {
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="border-b border-white/10 bg-slate-950/60 px-5 py-4 backdrop-blur-xl">
+        <div
+          className="border-b px-5 py-4 backdrop-blur-xl"
+          style={{
+            borderColor: shellTheme.panelBorder,
+            background: shellTheme.panelStrongBg,
+          }}
+        >
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="min-w-0 flex-1">
-              <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/80">Editor session</p>
+              <p
+                className="text-xs uppercase tracking-[0.24em]"
+                style={{ color: shellTheme.accent }}
+              >
+                Phiên làm việc
+              </p>
               <input
                 value={diagramTitle}
                 onChange={(event) => setDiagramTitle(event.target.value)}
-                placeholder="Diagram title"
-                className="mt-2 w-full max-w-2xl bg-transparent text-2xl font-semibold tracking-tight text-white outline-none placeholder:text-slate-500"
+                placeholder="Tên sơ đồ"
+                className="mt-2 w-full max-w-2xl bg-transparent text-2xl font-semibold tracking-tight outline-none"
+                style={{
+                  color: shellTheme.panelText,
+                }}
               />
-              <p className="mt-2 text-sm text-slate-400">
-                {currentDiagramId ? `Editing diagram #${currentDiagramId}` : 'Unsaved draft'}
-                {isDirty ? ' � unsaved changes' : ' � all changes reflected in local state'}
+              <p className="mt-2 text-sm" style={{ color: shellTheme.panelMuted }}>
+                {currentDiagramId ? `Đang chỉnh sửa sơ đồ #${currentDiagramId}` : 'Bản nháp chưa lưu'}
+                {isDirty ? ' · có thay đổi chưa lưu' : ' · trạng thái cục bộ đã đồng bộ'}
               </p>
             </div>
 
-            <div className={`rounded-2xl border px-4 py-3 text-sm ${statusTone}`}>
+            <div
+              className={`rounded-2xl border px-4 py-3 text-sm ${statusTone}`}
+              style={{
+                borderColor:
+                  saveState.status === 'error'
+                    ? undefined
+                    : saveState.status === 'saved'
+                      ? undefined
+                      : saveState.status === 'saving' || saveState.status === 'loading'
+                        ? undefined
+                        : shellTheme.panelBorder,
+                background:
+                  saveState.status === 'idle' ? shellTheme.panelBg : undefined,
+                color:
+                  saveState.status === 'idle' ? shellTheme.panelText : undefined,
+              }}
+            >
               <div className="flex items-center gap-2">
                 {saveState.status === 'error' ? (
                   <AlertCircle className="h-4 w-4" />
@@ -573,7 +742,7 @@ export default function MindMapEditor() {
                 ) : saveState.status === 'saving' || saveState.status === 'loading' ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : null}
-                <span>{saveState.message || 'Workspace ready.'}</span>
+                <span>{saveState.message || 'Không gian làm việc đã sẵn sàng.'}</span>
               </div>
             </div>
           </div>
@@ -608,6 +777,7 @@ export default function MindMapEditor() {
             onOpenUploadPanel={() => setShowUploadPanel(true)}
             onSave={handleSaveDiagram}
             saveState={saveState.status}
+            fitViewNonce={fitViewNonce}
           />
         </div>
       </div>
@@ -617,11 +787,10 @@ export default function MindMapEditor() {
         messages={chatMessages}
         loading={assistantState.loading}
         error={assistantState.error}
+        themeId={themeId}
         onToggle={() => setAssistantOpen((current) => !current)}
         onSendPrompt={handleAssistantPrompt}
       />
     </div>
   );
 }
-
-

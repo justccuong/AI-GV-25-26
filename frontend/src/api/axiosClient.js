@@ -20,7 +20,7 @@ axiosClient.interceptors.request.use((config) => {
   return config;
 });
 
-export function getApiErrorMessage(error, fallbackMessage = 'Something went wrong.') {
+export function getApiErrorMessage(error, fallbackMessage = 'Đã có lỗi xảy ra.') {
   if (axios.isAxiosError(error)) {
     return (
       error.response?.data?.detail ||
