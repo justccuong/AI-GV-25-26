@@ -1,44 +1,67 @@
-// frontend/src/App.jsx
 import React from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import Header from './components/Header';
 import MindMapEditor from './pages/MindMapEditor';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Settings from './pages/Settings';
 
-// Bảo vệ an ninh: Không có thẻ (Token) thì biến ra ngoài cổng!
-const PrivateRoute = ({ children }) => {
+const AUTH_ROUTES = new Set(['/login', '/register']);
+
+function PrivateRoute({ children }) {
   const token = localStorage.getItem('access_token');
-  return token ? children : <Navigate to="/login" />;
-};
+
+  return token ? children : <Navigate to="/login" replace />;
+}
 
 export default function App() {
+  const location = useLocation();
+  const isAuthRoute = AUTH_ROUTES.has(location.pathname);
+
   return (
-    <div className="flex flex-col h-screen font-sans text-gray-800">
-      <Header />
-      <div className="flex-1 relative overflow-hidden">
+    <div className="h-screen overflow-hidden bg-slate-950 text-slate-100">
+      {!isAuthRoute && <Header />}
+
+      <div className={isAuthRoute ? 'h-full' : 'h-[calc(100vh-5rem)]'}>
         <Routes>
-          {/* Mấy trang này ai vào cũng được */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
 
-          {/* Sân chơi này phải có vé mới được vào */}
-          <Route 
-            path="/" 
+          <Route path="/" element={<Navigate to="/workspace" replace />} />
+          <Route
+            path="/workspace"
             element={
               <PrivateRoute>
                 <MindMapEditor />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/editor/:id" 
+          <Route
+            path="/diagrams"
             element={
               <PrivateRoute>
                 <MindMapEditor />
               </PrivateRoute>
-            } 
+            }
           />
+          <Route
+            path="/editor/:id"
+            element={
+              <PrivateRoute>
+                <MindMapEditor />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <PrivateRoute>
+                <Settings />
+              </PrivateRoute>
+            }
+          />
+
+          <Route path="*" element={<Navigate to="/workspace" replace />} />
         </Routes>
       </div>
     </div>

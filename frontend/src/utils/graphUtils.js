@@ -1,217 +1,453 @@
 import dagre from 'dagre';
-import { getTheme, DEFAULT_THEME_ID } from './themeConfig';
+import { DEFAULT_THEME_ID, getTheme } from './themeConfig';
 
-// Only layout mode: center-out mindmap
-export const LAYOUT_MODES = {
-  MINDMAP: 'mindmap',
+export const NODE_TYPES = {
+  STANDARD: 'standard',
+  TEXT: 'text',
+  IMAGE: 'image',
+  DECISION: 'decision',
 };
 
-const nodeWidth = 240;
-const baseNodeHeight = 60;
-const ROOT_NODE_SIZE = 280;
-const PADDING_VERTICAL = 24;
-const LINE_HEIGHT = 22;
-const CHARS_PER_LINE = 32;
+const ROOT_SIZE = 196;
+const DEFAULT_DIMENSIONS = {
+  [NODE_TYPES.STANDARD]: { width: 230, height: 78 },
+  [NODE_TYPES.TEXT]: { width: 280, height: 160 },
+  [NODE_TYPES.IMAGE]: { width: 240, height: 220 },
+  [NODE_TYPES.DECISION]: { width: 220, height: 140 },
+};
 
-function stripHtml(html) {
-  if (typeof html !== 'string') return '';
-  return html.replace(/<[^>]*>/g, '').trim();
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
 }
 
-function getNodeSize(label, isRoot) {
-  if (isRoot) return { width: ROOT_NODE_SIZE, height: ROOT_NODE_SIZE };
-  const raw = stripHtml(label || '');
-  const lines = raw ? raw.split(/\r?\n/) : [''];
-  let totalWrappedLines = 0;
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      totalWrappedLines += 1;
-      continue;
-    }
-    totalWrappedLines += Math.max(1, Math.ceil(trimmed.length / CHARS_PER_LINE));
+export function stripHtml(html) {
+  if (typeof html !== 'string') {
+    return '';
   }
-  const contentHeight = totalWrappedLines * LINE_HEIGHT;
-  const height = Math.max(baseNodeHeight, Math.ceil(contentHeight + PADDING_VERTICAL));
-  return { width: nodeWidth, height };
+
+  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-const runDagreLayout = (nodes, edges, options = {}) => {
-  const { rankdir = 'LR', ranksep = 60, nodesep = 40, edgesep = 15 } = options;
-  const g = new dagre.graphlib.Graph();
-  g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir, ranksep, nodesep, edgesep });
+function branchPalette(themeId) {
+  if (themeId === 'pink') {
+    return ['#ec4899', '#f472b6', '#fb7185', '#f9a8d4', '#fda4af'];
+  }
 
-  const getSize = (node) => {
-    const isRoot = node.id === 'root';
-    const explicit = node.style?.width != null && node.style?.height != null;
-    if (explicit && typeof node.style.width === 'number' && typeof node.style.height === 'number') {
-      return { width: node.style.width, height: node.style.height };
-    }
-    return getNodeSize(node.data.label, isRoot);
+  if (themeId === 'tech') {
+    return ['#06b6d4', '#38bdf8', '#22d3ee', '#14b8a6', '#60a5fa'];
+  }
+
+  return ['#0ea5e9', '#22c55e', '#f97316', '#a855f7', '#ec4899'];
+}
+
+export function createNodeId(prefix = 'node') {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function getDefaultNodeLabel(nodeType = NODE_TYPES.STANDARD) {
+  switch (nodeType) {
+    case NODE_TYPES.TEXT:
+      return 'Text note';
+    case NODE_TYPES.IMAGE:
+      return 'Image reference';
+    case NODE_TYPES.DECISION:
+      return 'Decision point';
+    default:
+      return 'New node';
+  }
+}
+
+function getNodeDimensions({ label, nodeType = NODE_TYPES.STANDARD, isRoot = false }) {
+  if (isRoot) {
+    return { width: ROOT_SIZE, height: ROOT_SIZE };
+  }
+
+  const contentWidth = clamp(stripHtml(label || getDefaultNodeLabel(nodeType)).length * 7.5 + 90, 180, 320);
+
+  if (nodeType === NODE_TYPES.TEXT) {
+    return { width: clamp(contentWidth + 30, 240, 340), height: DEFAULT_DIMENSIONS[NODE_TYPES.TEXT].height };
+  }
+
+  if (nodeType === NODE_TYPES.IMAGE) {
+    return DEFAULT_DIMENSIONS[NODE_TYPES.IMAGE];
+  }
+
+  if (nodeType === NODE_TYPES.DECISION) {
+    return DEFAULT_DIMENSIONS[NODE_TYPES.DECISION];
+  }
+
+  return { width: contentWidth, height: DEFAULT_DIMENSIONS[NODE_TYPES.STANDARD].height };
+}
+
+function makeTransparent(hexColor, alpha = '20') {
+  if (typeof hexColor !== 'string' || !hexColor.startsWith('#') || hexColor.length !== 7) {
+    return hexColor;
+  }
+
+  return `${hexColor}${alpha}`;
+}
+
+function getNodeStyle({
+  themeId = DEFAULT_THEME_ID,
+  nodeType = NODE_TYPES.STANDARD,
+  label,
+  isRoot = false,
+  accentColor,
+  width,
+  height,
+}) {
+  const theme = getTheme(themeId);
+  const themeNode = theme.node;
+  const themeEdge = theme.edge;
+  const dimensions = getNodeDimensions({ label, nodeType, isRoot });
+  const resolvedAccent = accentColor || themeEdge.stroke;
+
+  const baseStyle = {
+    width: width ?? dimensions.width,
+    height: height ?? dimensions.height,
+    color: themeNode.textColor,
+    borderRadius: 28,
+    border: `1px solid ${makeTransparent(resolvedAccent, '60')}`,
+    background: themeNode.childBg,
+    boxShadow: themeNode.boxShadow || '0 18px 45px rgba(15, 23, 42, 0.18)',
+    fontFamily: themeNode.fontFamily,
+    fontWeight: 600,
+    display: 'flex',
+    alignItems: 'stretch',
+    justifyContent: 'stretch',
+    padding: 0,
+    overflow: 'hidden',
+    backdropFilter: 'blur(14px)',
   };
+
+  if (isRoot) {
+    return {
+      ...baseStyle,
+      width: width ?? ROOT_SIZE,
+      height: height ?? ROOT_SIZE,
+      borderRadius: '50%',
+      border: '2px solid rgba(255,255,255,0.78)',
+      background: 'linear-gradient(135deg, #0ea5e9 0%, #22d3ee 45%, #34d399 100%)',
+      color: '#ecfeff',
+      boxShadow: '0 28px 70px rgba(14, 165, 233, 0.35)',
+    };
+  }
+
+  if (nodeType === NODE_TYPES.TEXT) {
+    return {
+      ...baseStyle,
+      background: 'linear-gradient(180deg, rgba(15,23,42,0.92), rgba(15,23,42,0.78))',
+      border: `1px dashed ${makeTransparent(resolvedAccent, '90')}`,
+      borderRadius: 24,
+      color: '#f8fafc',
+    };
+  }
+
+  if (nodeType === NODE_TYPES.IMAGE) {
+    return {
+      ...baseStyle,
+      background: 'linear-gradient(180deg, rgba(255,255,255,0.96), rgba(226,232,240,0.92))',
+      border: `1px solid ${makeTransparent(resolvedAccent, '70')}`,
+      color: '#0f172a',
+      borderRadius: 30,
+    };
+  }
+
+  if (nodeType === NODE_TYPES.DECISION) {
+    return {
+      ...baseStyle,
+      background: `linear-gradient(135deg, ${makeTransparent(resolvedAccent, '20')}, ${makeTransparent(resolvedAccent, '95')})`,
+      border: `1px solid ${makeTransparent(resolvedAccent, '95')}`,
+      color: '#f8fafc',
+      borderRadius: 0,
+      clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
+    };
+  }
+
+  return {
+    ...baseStyle,
+    background: `linear-gradient(135deg, ${makeTransparent(resolvedAccent, '20')}, ${makeTransparent(resolvedAccent, '88')})`,
+    border: `1px solid ${makeTransparent(resolvedAccent, '88')}`,
+    color: themeId === 'default' ? '#0f172a' : '#f8fafc',
+  };
+}
+
+function getEdgeStyle(themeId = DEFAULT_THEME_ID, accentColor) {
+  const theme = getTheme(themeId);
+  const resolvedAccent = accentColor || theme.edge.stroke;
+
+  return {
+    stroke: resolvedAccent,
+    strokeWidth: theme.edge.strokeWidth ?? 3,
+    filter: theme.edge.filter,
+  };
+}
+
+export function createDiagramNode({
+  id = createNodeId('node'),
+  label,
+  themeId = DEFAULT_THEME_ID,
+  position = { x: 0, y: 0 },
+  nodeType = NODE_TYPES.STANDARD,
+  isRoot = false,
+  imageUrl = '',
+  fontSize,
+  accentColor,
+}) {
+  const data = {
+    label: label || getDefaultNodeLabel(nodeType),
+    nodeType,
+    isRoot,
+    imageUrl,
+    accentColor,
+    fontSize:
+      typeof fontSize === 'number'
+        ? fontSize
+        : isRoot
+          ? 22
+          : nodeType === NODE_TYPES.TEXT
+            ? 16
+            : 14,
+  };
+
+  return {
+    id,
+    type: 'editable',
+    position,
+    data,
+    style: getNodeStyle({
+      themeId,
+      nodeType,
+      label: data.label,
+      isRoot,
+      accentColor,
+    }),
+  };
+}
+
+export function createDiagramEdge({
+  id,
+  source,
+  target,
+  themeId = DEFAULT_THEME_ID,
+  label = '',
+  accentColor,
+}) {
+  const style = getEdgeStyle(themeId, accentColor);
+
+  return {
+    id: id || `edge-${source}-${target}-${Math.random().toString(36).slice(2, 7)}`,
+    source,
+    target,
+    type: 'floating',
+    label,
+    markerEnd: { type: 'arrowclosed', color: style.stroke },
+    data: { accentColor: accentColor || style.stroke },
+    style,
+  };
+}
+
+function hydrateNode(node, themeId = DEFAULT_THEME_ID) {
+  const nodeType = node.data?.nodeType || NODE_TYPES.STANDARD;
+  const isRoot = Boolean(node.data?.isRoot);
+  const accentColor = node.data?.accentColor;
+
+  return {
+    ...node,
+    data: {
+      ...node.data,
+      nodeType,
+      isRoot,
+      fontSize:
+        typeof node.data?.fontSize === 'number'
+          ? node.data.fontSize
+          : Number(node.data?.fontSize) || (isRoot ? 22 : nodeType === NODE_TYPES.TEXT ? 16 : 14),
+      imageUrl: node.data?.imageUrl || '',
+    },
+    style: {
+      ...getNodeStyle({
+        themeId,
+        nodeType,
+        label: node.data?.label,
+        isRoot,
+        accentColor,
+        width: node.style?.width,
+        height: node.style?.height,
+      }),
+      ...('width' in (node.style || {}) ? { width: node.style.width } : {}),
+      ...('height' in (node.style || {}) ? { height: node.style.height } : {}),
+    },
+  };
+}
+
+function hydrateEdge(edge, themeId = DEFAULT_THEME_ID) {
+  const accentColor = edge.data?.accentColor || edge.style?.stroke;
+  const style = getEdgeStyle(themeId, accentColor);
+
+  return {
+    ...edge,
+    type: edge.type || 'floating',
+    markerEnd: { type: 'arrowclosed', color: style.stroke },
+    data: {
+      ...edge.data,
+      accentColor: accentColor || style.stroke,
+    },
+    style: {
+      ...style,
+      ...edge.style,
+      stroke: accentColor || style.stroke,
+      strokeWidth: edge.style?.strokeWidth ?? style.strokeWidth,
+    },
+  };
+}
+
+export function applyThemeToDiagram(nodes = [], edges = [], themeId = DEFAULT_THEME_ID) {
+  return {
+    nodes: nodes.map((node) => hydrateNode(node, themeId)),
+    edges: edges.map((edge) => hydrateEdge(edge, themeId)),
+  };
+}
+
+export function autoLayoutDiagram(nodes = [], edges = [], options = {}, themeId = DEFAULT_THEME_ID) {
+  if (!nodes.length) {
+    return applyThemeToDiagram(nodes, edges, themeId);
+  }
+
+  const { direction = 'LR', ranksep = 110, nodesep = 60 } = options;
+  const graph = new dagre.graphlib.Graph();
+
+  graph.setDefaultEdgeLabel(() => ({}));
+  graph.setGraph({
+    rankdir: direction,
+    ranksep,
+    nodesep,
+    marginx: 40,
+    marginy: 40,
+  });
 
   nodes.forEach((node) => {
-    const size = getSize(node);
-    g.setNode(node.id, { width: size.width, height: size.height });
-  });
-  edges.forEach((edge) => g.setEdge(edge.source, edge.target));
-  dagre.layout(g);
+    const hydrated = hydrateNode(node, themeId);
+    const width = Number(hydrated.style?.width) || getNodeDimensions({
+      label: hydrated.data?.label,
+      nodeType: hydrated.data?.nodeType,
+      isRoot: hydrated.data?.isRoot,
+    }).width;
+    const height = Number(hydrated.style?.height) || getNodeDimensions({
+      label: hydrated.data?.label,
+      nodeType: hydrated.data?.nodeType,
+      isRoot: hydrated.data?.isRoot,
+    }).height;
 
-  return nodes.map((node) => {
-    const pos = g.node(node.id);
-    const size = getSize(node);
+    graph.setNode(node.id, { width, height });
+  });
+
+  edges.forEach((edge) => {
+    graph.setEdge(edge.source, edge.target);
+  });
+
+  dagre.layout(graph);
+
+  const layoutedNodes = nodes.map((node) => {
+    const layout = graph.node(node.id);
+    const hydrated = hydrateNode(node, themeId);
+    const width = Number(hydrated.style?.width);
+    const height = Number(hydrated.style?.height);
+
     return {
-      ...node,
-      position: { x: pos.x - size.width / 2, y: pos.y - size.height / 2 },
-      style: { ...node.style, width: size.width, height: size.height },
+      ...hydrated,
+      position: layout
+        ? {
+            x: layout.x - width / 2,
+            y: layout.y - height / 2,
+          }
+        : node.position,
     };
   });
-};
 
-/**
- * Process API mind map data into nodes and edges. Theme-aware (Future Tech / Pink Cyberpunk).
- */
-export const processMindMapData = (rootNode, themeId = DEFAULT_THEME_ID) => {
-  if (!rootNode) return { nodes: [], edges: [] };
+  return {
+    nodes: layoutedNodes,
+    edges: edges.map((edge) => hydrateEdge(edge, themeId)),
+  };
+}
 
-  const theme = getTheme(themeId);
-  const t = theme.node;
-  const edgeTheme = theme.edge;
+export function normalizeSavedDiagram(payload, fallbackThemeId = DEFAULT_THEME_ID) {
+  if (!payload) {
+    return { nodes: [], edges: [], themeId: fallbackThemeId };
+  }
 
-  const allNodesRaw = [];
-  const allEdgesRaw = [];
-  let branchIndex = 0;
-  const branchColors =
-    themeId === 'pink'
-      ? ['#ec4899', '#f472b6', '#f9a8d4', '#fbcfe8', '#fce7f3', '#fdf2f8']
-      : themeId === 'default'
-        // 🌈 7 sắc cầu vồng Pastel - Mix Nóng/Lạnh cực dịu mắt cho Hoàng tử
-        // Thứ tự: Hồng (Nóng) -> Xanh lục (Lạnh) -> Cam (Nóng) -> Xanh dương (Lạnh) -> Vàng (Nóng) -> Tím (Lạnh) -> Xanh lá (Lạnh)
-        ? ['#fda4af', '#67e8f9', '#fcd34d', '#93c5fd', '#f9a8d4', '#c4b5fd', '#6ee7b7']
-        : ['#06b6d4', '#22d3ee', '#0ea5e9', '#38bdf8', '#7dd3fc', '#bae6fd'];
+  const parsedPayload = typeof payload === 'string' ? JSON.parse(payload) : payload;
 
-  const traverse = (node, parentId = null, currentBranchColor = null) => {
-    let nodeColor = currentBranchColor;
-    if (parentId === 'root') {
-      nodeColor = branchColors[branchIndex % branchColors.length];
-      branchIndex++;
-    }
+  if (Array.isArray(parsedPayload.nodes) && Array.isArray(parsedPayload.edges)) {
+    const resolvedThemeId = parsedPayload.themeId || fallbackThemeId;
+    const themed = applyThemeToDiagram(parsedPayload.nodes, parsedPayload.edges, resolvedThemeId);
 
-    const isRoot = node.id === 'root' || !parentId;
-    const borderColor =
-      nodeColor ||
-      (themeId === 'pink'
-        ? '#ec4899'
-        : themeId === 'default'
-          ? '#94a3b8'
-          : '#06b6d4');
-
-    let nodeStyle = {
-      padding: '10px',
-      borderRadius: '20px',
-      color: t.textColor,
-      fontWeight: '500',
-      fontFamily: t.fontFamily,
-      fontSize: '14px',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      textAlign: 'center',
-      boxShadow: t.boxShadow,
+    return {
+      nodes: themed.nodes,
+      edges: themed.edges,
+      themeId: resolvedThemeId,
     };
+  }
 
-    if (isRoot) {
-      nodeStyle = {
-        ...nodeStyle,
-        background: t.rootBg,
-        border: t.rootBorder,
-        fontSize: '26px',
-        fontWeight: '800',
-        borderRadius: '50%',
-        zIndex: 10,
-      };
-    } else {
-      nodeStyle = {
-        ...nodeStyle,
-        background: borderColor,
-        border: `1px solid ${borderColor}`,
-        color: '#ffffff',
-      };
-    }
+  const root = parsedPayload.root || parsedPayload;
+  const mindMap = processMindMapData(root, fallbackThemeId);
 
-    allNodesRaw.push({
-      id: node.id,
-      data: { label: node.label },
-      position: { x: 0, y: 0 },
-      style: nodeStyle,
-      type: 'editable',
+  return {
+    nodes: mindMap.nodes,
+    edges: mindMap.edges,
+    themeId: fallbackThemeId,
+  };
+}
+
+export function processMindMapData(rootNode, themeId = DEFAULT_THEME_ID) {
+  if (!rootNode) {
+    return { nodes: [], edges: [] };
+  }
+
+  const colors = branchPalette(themeId);
+  const rawNodes = [];
+  const rawEdges = [];
+  let branchIndex = 0;
+
+  const traverse = (node, parentId = null, depth = 0, inheritedColor = null) => {
+    const isRoot = !parentId;
+    const nodeColor = isRoot
+      ? getTheme(themeId).edge.stroke
+      : depth === 1
+        ? colors[branchIndex++ % colors.length]
+        : inheritedColor;
+
+    const nodeType = node.nodeType || NODE_TYPES.STANDARD;
+    const nextNode = createDiagramNode({
+      id: node.id || (isRoot ? 'root' : createNodeId('node')),
+      label: node.label || (isRoot ? 'Main Topic' : getDefaultNodeLabel(nodeType)),
+      themeId,
+      nodeType,
+      isRoot,
+      imageUrl: node.imageUrl || '',
+      fontSize: node.fontSize,
+      accentColor: nodeColor,
     });
 
+    rawNodes.push(nextNode);
+
     if (parentId) {
-      const stroke = nodeColor || edgeTheme.stroke;
-      allEdgesRaw.push({
-        id: `e-${parentId}-${node.id}`,
-        source: parentId,
-        target: node.id,
-        type: 'floating',
-        animated: false,
-        markerEnd: { type: 'arrowclosed' },
-        style: {
-          stroke,
-          strokeWidth: edgeTheme.strokeWidth ?? 3,
-          filter: edgeTheme.filter,
-        },
-      });
+      rawEdges.push(
+        createDiagramEdge({
+          source: parentId,
+          target: nextNode.id,
+          themeId,
+          label: node.edgeLabel || '',
+          accentColor: nodeColor,
+        })
+      );
     }
 
-    if (node.children) {
-      node.children.forEach((child) => traverse(child, node.id, nodeColor));
-    }
+    (node.children || []).forEach((child) => {
+      traverse(child, nextNode.id, depth + 1, nodeColor);
+    });
   };
 
-  const safeRoot = { ...rootNode, id: 'root' };
-  traverse(safeRoot);
+  traverse({ ...rootNode, id: rootNode.id || 'root' });
 
-  const rootNodeObj = allNodesRaw.find((n) => n.id === 'root');
-  const firstLevelEdges = allEdgesRaw.filter((e) => e.source === 'root');
-  const leftNodeIds = new Set();
-  const rightNodeIds = new Set();
-  firstLevelEdges.forEach((edge, index) => {
-    const targetSet = index % 2 === 0 ? rightNodeIds : leftNodeIds;
-    const collectDescendants = (nodeId) => {
-      targetSet.add(nodeId);
-      allEdgesRaw.filter((e) => e.source === nodeId).forEach((e) => collectDescendants(e.target));
-    };
-    collectDescendants(edge.target);
-  });
-
-  const rightNodes = [rootNodeObj, ...allNodesRaw.filter((n) => rightNodeIds.has(n.id))];
-  const rightEdges = allEdgesRaw.filter((e) => rightNodeIds.has(e.target));
-  const leftNodes = [rootNodeObj, ...allNodesRaw.filter((n) => leftNodeIds.has(n.id))];
-  const leftEdges = allEdgesRaw.filter((e) => leftNodeIds.has(e.target));
-
-  const layoutedRight = runDagreLayout(rightNodes, rightEdges, { rankdir: 'LR', ranksep: 200, nodesep: 50 });
-  const layoutedLeft = runDagreLayout(leftNodes, leftEdges, { rankdir: 'LR', ranksep: 200, nodesep: 50 });
-
-  const allRightY = layoutedRight.map((n) => n.position.y + (n.style?.height || 0));
-  const allLeftY = layoutedLeft.map((n) => n.position.y + (n.style?.height || 0));
-  const minY = Math.min(...allRightY, ...allLeftY);
-  const maxY = Math.max(...allRightY, ...allLeftY);
-  const centerY = (minY + maxY) / 2;
-
-  const finalNodes = [];
-  layoutedRight.forEach((node) => {
-    if (node.id === 'root') {
-      node.position = { x: -node.style.width / 2, y: centerY - node.style.height / 2 };
-    }
-    finalNodes.push(node);
-  });
-  layoutedLeft.forEach((node) => {
-    if (node.id === 'root') return;
-    const newX = -node.position.x - node.style.width;
-    finalNodes.push({ ...node, position: { x: newX, y: node.position.y } });
-  });
-
-  return { nodes: finalNodes, edges: allEdgesRaw };
-};
+  return autoLayoutDiagram(rawNodes, rawEdges, { direction: 'LR' }, themeId);
+}

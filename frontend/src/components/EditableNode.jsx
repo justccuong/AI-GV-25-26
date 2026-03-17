@@ -1,118 +1,131 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Handle, Position, NodeResizer } from 'reactflow';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Handle, NodeResizer, Position } from 'reactflow';
+import { Bold, Italic, Link2, Plus, Trash2 } from 'lucide-react';
 import '../App.css';
 
-const FONT_SIZE_OPTIONS = [12, 14, 16, 20, 24];
+const FONT_SIZE_OPTIONS = [12, 14, 16, 18, 22, 28];
 
-function isHtml(str) {
-  if (typeof str !== 'string') return false;
-  return /<[a-z][\s\S]*>/i.test(str);
+function isHtml(value) {
+  return typeof value === 'string' && /<[a-z][\s\S]*>/i.test(value);
+}
+
+function toHtml(value) {
+  if (!value) {
+    return '';
+  }
+
+  return isHtml(value) ? value : value.replace(/\n/g, '<br />');
+}
+
+function stripHtml(value) {
+  return typeof value === 'string' ? value.replace(/<[^>]*>/g, ' ').trim() : '';
 }
 
 export default function EditableNode({ data, selected, id }) {
-  const [content, setContent] = useState(() => data.label || '');
-  const [fontSizePx, setFontSizePx] = useState(() => {
-    const v = data.fontSize;
-    return typeof v === 'number' ? v : FONT_SIZE_OPTIONS.includes(Number(v)) ? Number(v) : 14;
-  });
+  const [draftLabel, setDraftLabel] = useState(data.label || '');
+  const [fontSizePx, setFontSizePx] = useState(
+    typeof data.fontSize === 'number' ? data.fontSize : Number(data.fontSize) || 14
+  );
+  const [draftImageUrl, setDraftImageUrl] = useState(data.imageUrl || '');
   const [isEditing, setIsEditing] = useState(false);
   const contentRef = useRef(null);
-  const toolbarRef = useRef(null);
 
   useEffect(() => {
-    setContent(data.label ?? '');
-  }, [data.label]);
+    if (!isEditing) {
+      setDraftLabel(data.label || '');
+    }
+  }, [data.label, isEditing]);
 
   useEffect(() => {
-    const v = data.fontSize;
-    if (v != null) setFontSizePx(FONT_SIZE_OPTIONS.includes(Number(v)) ? Number(v) : 14);
+    setDraftImageUrl(data.imageUrl || '');
+  }, [data.imageUrl]);
+
+  useEffect(() => {
+    setFontSizePx(typeof data.fontSize === 'number' ? data.fontSize : Number(data.fontSize) || 14);
   }, [data.fontSize]);
 
   useEffect(() => {
-    if (selected && contentRef.current && isEditing) {
-      const raw = content || '';
-      contentRef.current.innerHTML = isHtml(raw) ? raw : raw ? raw.replace(/\n/g, '<br/>') : '';
+    if (selected && isEditing && contentRef.current) {
+      contentRef.current.innerHTML = toHtml(draftLabel);
       contentRef.current.focus();
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(contentRef.current);
+      range.collapse(false);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
     }
-  }, [selected, isEditing]);
+  }, [draftLabel, isEditing, selected]);
 
-  const notifyChange = useCallback(
-    (newContent, newFontSizePx) => {
-      if (data.onLabelChange) {
-        data.onLabelChange(id, newContent, { fontSize: newFontSizePx });
-      }
+  const commitChanges = useCallback(
+    (extra = {}) => {
+      data.onDataChange?.(id, {
+        label: draftLabel,
+        fontSize: fontSizePx,
+        imageUrl: draftImageUrl,
+        ...extra,
+      });
     },
-    [id, data]
+    [data, draftImageUrl, draftLabel, fontSizePx, id]
   );
 
   const handleInput = useCallback(() => {
-    if (!contentRef.current) return;
-    const html = contentRef.current.innerHTML;
-    setContent(html);
-    notifyChange(html, fontSizePx);
-  }, [fontSizePx, notifyChange]);
+    if (!contentRef.current) {
+      return;
+    }
 
-  const handleTextClick = useCallback((e) => {
-    if (!selected) return; 
+    setDraftLabel(contentRef.current.innerHTML);
+  }, []);
 
-    e.stopPropagation();
-    setIsEditing(true);
-    setTimeout(() => {
-      if (contentRef.current) {
-        contentRef.current.focus();
-        const range = document.createRange();
-        range.selectNodeContents(contentRef.current);
-        range.collapse(false);
-        const sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(range);
+  const handleTextClick = useCallback(
+    (event) => {
+      if (!selected || data.disableEditing) {
+        return;
       }
-    }, 0);
-  }, [selected]);
+
+      event.stopPropagation();
+      setIsEditing(true);
+    },
+    [data.disableEditing, selected]
+  );
 
   const handleBlur = useCallback(() => {
     setIsEditing(false);
-    handleInput();
-  }, [handleInput]);
+    commitChanges();
+  }, [commitChanges]);
 
-  const execCommand = useCallback((command, value = null) => {
-    document.execCommand(command, false, value);
+  const execCommand = useCallback((command) => {
+    document.execCommand(command, false, null);
+    handleInput();
     contentRef.current?.focus();
-    handleInput();
   }, [handleInput]);
 
-  const applyFontSize = useCallback(
-    (px) => {
-      const num = Number(px);
-      if (!FONT_SIZE_OPTIONS.includes(num)) return;
-      setFontSizePx(num);
-      if (contentRef.current) notifyChange(contentRef.current.innerHTML, num);
-    },
-    [notifyChange]
-  );
+  const wrapperStyle = useMemo(() => {
+    const nodeStyle = data.style || {};
 
-  const nodeStyle = data.style || {};
-  const isConnectSource = data.isConnectSource === true;
+    return {
+      ...nodeStyle,
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'stretch',
+      alignItems: 'stretch',
+      textAlign: 'center',
+      position: 'relative',
+      boxSizing: 'border-box',
+      cursor: data.disableEditing ? 'crosshair' : 'move',
+      boxShadow: data.isConnectSource
+        ? '0 0 0 3px rgba(34,197,94,0.7), 0 18px 45px rgba(15,23,42,0.28)'
+        : nodeStyle.boxShadow,
+    };
+  }, [data.disableEditing, data.isConnectSource, data.style]);
+
+  const bodyClasses = `mindmap-node-content ${isEditing ? 'nodrag' : ''}`;
+  const nodeType = data.nodeType || 'standard';
 
   return (
-    <div
-      className="relative w-full h-full"
-      style={{
-        ...nodeStyle,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
-        textAlign: 'center',
-        boxSizing: 'border-box',
-        cursor: 'move', 
-        ...(isConnectSource
-          ? { boxShadow: '0 0 0 3px #22c55e', borderRadius: 'inherit' }
-          : {}),
-      }}
-    >
+    <div style={wrapperStyle}>
       {selected && (
-        <NodeResizer color="#3b82f6" isVisible minWidth={100} minHeight={40} />
+        <NodeResizer color="#22d3ee" isVisible minWidth={140} minHeight={70} />
       )}
 
       <Handle type="target" position={Position.Top} />
@@ -120,109 +133,110 @@ export default function EditableNode({ data, selected, id }) {
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />
 
-      {selected && (
+      {selected && !data.disableEditing && (
         <div
-          ref={toolbarRef}
           className="rich-text-toolbar nodrag"
           style={{
             position: 'absolute',
-            bottom: '100%',
             left: '50%',
-            transform: 'translateX(-50%) translateY(-12px)', // Đẩy lên tí cho thoáng
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            background: '#1f2937', // Chuyển sang dark mode nhìn cho ngầu
-            padding: '6px 12px',
-            borderRadius: '8px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-            zIndex: 100,
+            bottom: 'calc(100% + 14px)',
+            transform: 'translateX(-50%)',
           }}
-          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={(event) => event.stopPropagation()}
         >
-          {/* Nút format text cũ của cậu, tớ style lại cho đồng bộ */}
-          <button type="button" onClick={() => execCommand('bold')} title="Bold" style={{ background: 'transparent', color: 'white', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>B</button>
-          <button type="button" onClick={() => execCommand('italic')} title="Italic" style={{ background: 'transparent', color: 'white', border: 'none', cursor: 'pointer', fontStyle: 'italic' }}>I</button>
-          
+          <button type="button" onClick={() => execCommand('bold')} title="Bold">
+            <Bold className="h-4 w-4" />
+          </button>
+          <button type="button" onClick={() => execCommand('italic')} title="Italic">
+            <Italic className="h-4 w-4" />
+          </button>
           <select
             value={fontSizePx}
-            onChange={(e) => applyFontSize(e.target.value)}
-            title="Font size (px)"
-            className="nodrag"
-            style={{ background: '#374151', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 4px', cursor: 'pointer', outline: 'none' }}
+            onChange={(event) => {
+              const nextSize = Number(event.target.value);
+              setFontSizePx(nextSize);
+              data.onDataChange?.(id, { fontSize: nextSize });
+            }}
           >
-            {FONT_SIZE_OPTIONS.map((px) => (
-              <option key={px} value={px}>{px} px</option>
+            {FONT_SIZE_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}px
+              </option>
             ))}
           </select>
-
-          {/* Vách ngăn chia khu vực */}
-          <div style={{ width: '1px', height: '16px', background: '#4b5563', margin: '0 4px' }} />
-
-          {/* Cặp nút thao tác siêu tốc mới thêm vào */}
-          <button 
-            type="button" 
-            onClick={(e) => { e.stopPropagation(); if (data.onAddChild) data.onAddChild(); }} 
-            title="Thêm nhánh con"
-            style={{ background: 'transparent', color: '#10b981', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', padding: '0 4px' }}
-          >
-            + Nhánh
+          <button type="button" onClick={() => data.onAddChild?.()} title="Add child node">
+            <Plus className="h-4 w-4" />
           </button>
-          <button 
-            type="button" 
-            onClick={(e) => { e.stopPropagation(); if (data.onDelete) data.onDelete(); }} 
-            title="Xóa Node này"
-            style={{ background: 'transparent', color: '#ef4444', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', padding: '0 4px' }}
-          >
-            Xóa
+          <button type="button" onClick={() => data.onDelete?.()} title="Delete node">
+            <Trash2 className="h-4 w-4" />
           </button>
         </div>
       )}
 
       <div
-        className={`mindmap-node-content ${isEditing ? 'nodrag' : ''}`}
-        style={{
-          color: nodeStyle.color || 'inherit', 
-          fontFamily: nodeStyle.fontFamily || 'inherit',
-          fontWeight: nodeStyle.fontWeight || 'inherit',
-          padding: '10px',
-          cursor: isEditing ? 'text' : 'move',
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
+        className="flex h-full w-full flex-col items-center justify-center gap-3 px-4 py-4"
         onClick={handleTextClick}
       >
-        {selected && isEditing ? (
+        {!data.isRoot && (
+          <span className="rounded-full border border-white/10 bg-black/15 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-current/70">
+            {nodeType}
+          </span>
+        )}
+
+        {nodeType === 'image' && (
+          <div className="flex w-full flex-1 flex-col items-center justify-center gap-3">
+            {draftImageUrl ? (
+              <img
+                src={draftImageUrl}
+                alt={stripHtml(data.label || 'Image node') || 'Image node'}
+                className="h-28 w-full rounded-2xl object-cover shadow-lg"
+              />
+            ) : (
+              <div className="flex h-28 w-full items-center justify-center rounded-2xl border border-dashed border-slate-400/40 bg-slate-100 text-sm text-slate-500">
+                Add an image URL below
+              </div>
+            )}
+
+            {selected && !data.disableEditing && (
+              <label className="flex w-full items-center gap-2 rounded-2xl border border-slate-300 bg-white/80 px-3 py-2 text-xs text-slate-700 nodrag">
+                <Link2 className="h-3.5 w-3.5" />
+                <input
+                  value={draftImageUrl}
+                  onChange={(event) => setDraftImageUrl(event.target.value)}
+                  onBlur={() => commitChanges()}
+                  placeholder="Paste image URL"
+                  className="w-full bg-transparent outline-none placeholder:text-slate-400"
+                />
+              </label>
+            )}
+          </div>
+        )}
+
+        {selected && isEditing && !data.disableEditing ? (
           <div
             ref={contentRef}
             contentEditable
             suppressContentEditableWarning
-            className="mindmap-node-content nodrag"
+            className={`${bodyClasses} w-full text-center`}
             style={{
               fontSize: `${fontSizePx}px`,
               color: 'inherit',
               minHeight: '1.5em',
               width: '100%',
-              cursor: 'text',
-              outline: 'none',
             }}
             onInput={handleInput}
             onBlur={handleBlur}
           />
         ) : (
           <div
-            className="mindmap-node-content"
+            className={`${bodyClasses} w-full text-center`}
             style={{
-              fontSize: `${typeof data.fontSize === 'number' ? data.fontSize : fontSizePx}px`,
+              fontSize: `${fontSizePx}px`,
               color: 'inherit',
-              cursor: selected ? 'text' : 'move',
-              width: '100%',
             }}
             dangerouslySetInnerHTML={{
-              __html: isHtml(content) ? content : content ? content.replace(/\n/g, '<br/>') : '',
+              __html: toHtml(draftLabel),
             }}
           />
         )}
