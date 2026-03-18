@@ -4,6 +4,7 @@ import { getTheme } from '../utils/themeConfig';
 
 const QUICK_PROMPTS = [
   'Tạo mindmap về DevOps',
+  'Xóa node được thêm cuối cùng',
   'Đọc sơ đồ hiện tại và sắp xếp lại cho gọn',
   'Mở rộng sơ đồ hiện tại với chiến lược kiểm thử',
 ];

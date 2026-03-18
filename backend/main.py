@@ -2,6 +2,7 @@
 import json
 import os
 import re
+import unicodedata
 from datetime import datetime, timezone
 from typing import Any, Dict
 
@@ -70,6 +71,46 @@ def slugify(value: str) -> str:
     normalized = normalize_text(value).lower().replace('đ', 'd')
     normalized = re.sub(r'[^a-z0-9]+', '-', normalized)
     return normalized.strip('-')
+
+
+def normalize_search_text(value: Any) -> str:
+    if not isinstance(value, str):
+        return ''
+
+    normalized = unicodedata.normalize('NFD', value)
+    normalized = ''.join(char for char in normalized if unicodedata.category(char) != 'Mn')
+    normalized = normalized.replace('đ', 'd').replace('Đ', 'D').lower()
+    normalized = re.sub(r'[^a-z0-9\s-]+', ' ', normalized)
+    return re.sub(r'\s+', ' ', normalized).strip()
+
+
+def is_delete_request(prompt: str) -> bool:
+    normalized = normalize_search_text(prompt)
+    delete_keywords = [
+        'xoa',
+        'delete',
+        'remove',
+        'bo node',
+        'bo nhanh',
+        'xoa node',
+        'xoa nut',
+        'xoa nhanh',
+        'xoa muc',
+    ]
+    return any(keyword in normalized for keyword in delete_keywords)
+
+
+def is_last_added_delete_request(prompt: str) -> bool:
+    normalized = normalize_search_text(prompt)
+    hints = [
+        'cuoi cung',
+        'moi nhat',
+        'gan nhat',
+        'vua them',
+        'duoc them cuoi',
+        'them cuoi',
+    ]
+    return any(hint in normalized for hint in hints)
 
 
 def extract_topic(prompt: str) -> str:
@@ -232,6 +273,118 @@ def get_root_node_id(current_diagram: Dict[str, Any] | None) -> str | None:
     return None
 
 
+def get_deletable_nodes(current_diagram: Dict[str, Any] | None) -> list[Dict[str, Any]]:
+    current_diagram = current_diagram or {}
+    nodes = current_diagram.get('nodes') if isinstance(current_diagram.get('nodes'), list) else []
+    root_id = get_root_node_id(current_diagram)
+    deletable_nodes: list[Dict[str, Any]] = []
+
+    for node in nodes:
+        if not isinstance(node, dict) or not node.get('id'):
+            continue
+
+        data = node.get('data') if isinstance(node.get('data'), dict) else {}
+        if data.get('isRoot') or str(node.get('id')) == root_id:
+            continue
+
+        deletable_nodes.append(node)
+
+    return deletable_nodes
+
+
+def extract_delete_target_candidates(prompt: str) -> list[str]:
+    candidates = [normalize_text(match) for match in re.findall(r'["“”\']([^"“”\']+)["“”\']', prompt)]
+    return [candidate for candidate in candidates if candidate]
+
+
+def resolve_delete_target_ids(prompt: str, current_diagram: Dict[str, Any] | None) -> list[str]:
+    deletable_nodes = get_deletable_nodes(current_diagram)
+    if not deletable_nodes:
+        return []
+
+    if is_last_added_delete_request(prompt):
+        return [str(deletable_nodes[-1]['id'])]
+
+    normalized_prompt = normalize_search_text(prompt)
+    reversed_nodes = list(reversed(deletable_nodes))
+
+    for candidate in extract_delete_target_candidates(prompt):
+        normalized_candidate = normalize_search_text(candidate)
+        if not normalized_candidate:
+            continue
+
+        matched = next(
+            (
+                node for node in reversed_nodes
+                if normalize_search_text(str((node.get('data') or {}).get('label') or '')) == normalized_candidate
+                or normalize_search_text(str(node.get('id'))) == normalized_candidate
+            ),
+            None,
+        )
+        if matched:
+            return [str(matched['id'])]
+
+    for node in reversed_nodes:
+        data = node.get('data') if isinstance(node.get('data'), dict) else {}
+        normalized_label = normalize_search_text(str(data.get('label') or ''))
+        normalized_id = normalize_search_text(str(node.get('id') or ''))
+
+        if normalized_label and len(normalized_label) >= 3 and normalized_label in normalized_prompt:
+            return [str(node['id'])]
+
+        if normalized_id and len(normalized_id) >= 3 and normalized_id in normalized_prompt:
+            return [str(node['id'])]
+
+    return []
+
+
+def build_delete_payload(prompt: str, current_diagram: Dict[str, Any] | None = None) -> Dict[str, Any] | None:
+    if not is_delete_request(prompt):
+        return None
+
+    current_diagram = current_diagram or {}
+    title = current_diagram.get('title') or 'Sơ đồ hiện tại'
+    deletable_nodes = get_deletable_nodes(current_diagram)
+
+    if not deletable_nodes:
+        return {
+            'mode': 'merge',
+            'title': title,
+            'message': 'Sơ đồ hiện tại chưa có nút nào phù hợp để xóa.',
+            'nodes': [],
+            'edges': [],
+            'removeNodeIds': [],
+            'removeEdgeIds': [],
+        }
+
+    remove_node_ids = resolve_delete_target_ids(prompt, current_diagram)
+    if not remove_node_ids:
+        return {
+            'mode': 'merge',
+            'title': title,
+            'message': 'Mình chưa xác định được nút cần xóa. Bạn có thể nói rõ hơn tên nhánh hoặc yêu cầu xóa nút cuối cùng.',
+            'nodes': [],
+            'edges': [],
+            'removeNodeIds': [],
+            'removeEdgeIds': [],
+        }
+
+    target_lookup = {str(node.get('id')): node for node in deletable_nodes}
+    target_node = target_lookup.get(remove_node_ids[0])
+    target_label = normalize_text(str(((target_node or {}).get('data') or {}).get('label') or ''))
+    target_description = f'"{target_label}"' if target_label else 'nút được chọn'
+
+    return {
+        'mode': 'merge',
+        'title': title,
+        'message': f'Đã xóa {target_description} khỏi sơ đồ hiện tại.',
+        'nodes': [],
+        'edges': [],
+        'removeNodeIds': remove_node_ids,
+        'removeEdgeIds': [],
+    }
+
+
 def should_replace_diagram(prompt: str, current_diagram: Dict[str, Any] | None) -> bool:
     current_diagram = current_diagram or {}
     nodes = current_diagram.get('nodes') if isinstance(current_diagram.get('nodes'), list) else []
@@ -258,6 +411,10 @@ def should_replace_diagram(prompt: str, current_diagram: Dict[str, Any] | None) 
 
 def fallback_assistant_payload(prompt: str, current_diagram: Dict[str, Any] | None = None) -> Dict[str, Any]:
     current_diagram = current_diagram or {}
+    delete_payload = build_delete_payload(prompt, current_diagram)
+
+    if delete_payload is not None:
+        return delete_payload
 
     if should_replace_diagram(prompt, current_diagram):
         root = fallback_mindmap(prompt)
@@ -403,6 +560,7 @@ def sanitize_assistant_payload(payload: Dict[str, Any], prompt: str, current_dia
     current_nodes = current_diagram.get('nodes') if isinstance(current_diagram.get('nodes'), list) else []
     current_node_ids = {str(node.get('id')) for node in current_nodes if isinstance(node, dict) and node.get('id')}
     root_id = get_root_node_id(current_diagram)
+    delete_payload = build_delete_payload(prompt, current_diagram)
     diagram_payload = payload.get('diagram', payload) if isinstance(payload, dict) else {}
 
     if not isinstance(diagram_payload, dict):
@@ -426,7 +584,23 @@ def sanitize_assistant_payload(payload: Dict[str, Any], prompt: str, current_dia
     if not isinstance(edge_instructions, list):
         edge_instructions = diagram_payload.get('edge_updates') if isinstance(diagram_payload.get('edge_updates'), list) else []
 
-    if not node_instructions and not edge_instructions:
+    remove_node_ids = sanitize_remove_ids(diagram_payload.get('removeNodeIds') or diagram_payload.get('removedNodeIds'))
+    remove_edge_ids = sanitize_remove_ids(diagram_payload.get('removeEdgeIds') or diagram_payload.get('removedEdgeIds'))
+
+    if delete_payload is not None:
+        resolved_remove_node_ids = remove_node_ids or delete_payload.get('removeNodeIds', [])
+        resolved_remove_edge_ids = remove_edge_ids or delete_payload.get('removeEdgeIds', [])
+        return {
+            'mode': 'merge',
+            'title': normalize_text(diagram_payload.get('title')) or current_diagram.get('title') or delete_payload['title'],
+            'message': normalize_text(diagram_payload.get('message')) or delete_payload['message'],
+            'nodes': [],
+            'edges': [],
+            'removeNodeIds': resolved_remove_node_ids,
+            'removeEdgeIds': resolved_remove_edge_ids,
+        }
+
+    if not node_instructions and not edge_instructions and not remove_node_ids and not remove_edge_ids:
         return fallback_assistant_payload(prompt, current_diagram)
 
     existing_ids = set(current_node_ids)
@@ -444,7 +618,7 @@ def sanitize_assistant_payload(payload: Dict[str, Any], prompt: str, current_dia
         if sanitized:
             sanitized_edges.append(sanitized)
 
-    if not sanitized_nodes and not sanitized_edges:
+    if not sanitized_nodes and not sanitized_edges and not remove_node_ids and not remove_edge_ids:
         return fallback_assistant_payload(prompt, current_diagram)
 
     return {
@@ -453,8 +627,8 @@ def sanitize_assistant_payload(payload: Dict[str, Any], prompt: str, current_dia
         'message': normalize_text(diagram_payload.get('message')) or 'Đã tạo cập nhật có cấu trúc cho sơ đồ hiện tại.',
         'nodes': sanitized_nodes,
         'edges': sanitized_edges,
-        'removeNodeIds': sanitize_remove_ids(diagram_payload.get('removeNodeIds') or diagram_payload.get('removedNodeIds')),
-        'removeEdgeIds': sanitize_remove_ids(diagram_payload.get('removeEdgeIds') or diagram_payload.get('removedEdgeIds')),
+        'removeNodeIds': remove_node_ids,
+        'removeEdgeIds': remove_edge_ids,
     }
 
 
@@ -533,11 +707,14 @@ You must inspect the current diagram context and choose one of these two respons
 Rules:
 - If the current diagram has nodes, prefer mode="merge".
 - Use exact existing node ids from the provided context whenever you attach to or edit current nodes.
+- If the user asks to delete or remove a node/branch, do not add any new node. Return mode="merge" with removeNodeIds containing the exact existing node ids to remove.
+- If the user asks to delete the last added node, choose the most recently added non-root node from the current context.
 - For new node ids, use short slug-like ids with hyphens.
 - Labels must be short, usually under 6 words.
 - Edge labels are optional. Use an empty string unless the user explicitly asks for a label.
 - Do not include positions, React Flow styles, or any prose outside the JSON.
 - A merge response should contain only the changed nodes or edges, not the entire graph.
+- Never convert a delete request into a newly created node whose label repeats the user's command.
 
 Current diagram context:
 {json.dumps(summarized_context, ensure_ascii=False)[:12000]}

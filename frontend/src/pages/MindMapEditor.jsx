@@ -33,7 +33,7 @@ const INITIAL_ASSISTANT_MESSAGE = {
   id: 'assistant-welcome',
   role: 'assistant',
   content:
-    'Mình có thể đọc sơ đồ hiện tại, thêm nhánh mới, tinh gọn bố cục hoặc dựng lại mindmap từ prompt của bạn. Mọi cập nhật sẽ được áp dụng trực tiếp lên canvas.',
+    'Mình có thể đọc sơ đồ hiện tại, thêm nhánh mới, xóa nút hoặc nhánh theo yêu cầu, tinh gọn bố cục hoặc dựng lại mindmap từ prompt của bạn. Mọi cập nhật sẽ được áp dụng trực tiếp lên canvas.',
 };
 
 function createBlankSnapshot(themeId = DEFAULT_THEME_ID) {
