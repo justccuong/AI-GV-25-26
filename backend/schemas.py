@@ -38,10 +38,27 @@ class MindMapSummary(BaseModel):
     title: str
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    thumbnail: Optional[str] = None
+    node_count: int = 0
+    edge_count: int = 0
 
 
 class MindMapDetail(MindMapSummary):
     data: Dict[str, Any] = Field(default_factory=dict)
+
+
+class UserProfile(BaseModel):
+    name: str
+    email: str
+
+
+class UserProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[str] = None
+
+
+class UserProfileResponse(UserProfile):
+    access_token: Optional[str] = None
 
 
 class AssistantMindMapRequest(BaseModel):

@@ -1,5 +1,5 @@
-﻿import React, { useEffect, useState } from 'react';
-import { X, Palette, Type, Minus, GitBranch, Move } from 'lucide-react';
+import React, { useState } from 'react';
+import { GitBranch, Minus, Move, Palette, Type, X } from 'lucide-react';
 
 const EDGE_TYPES = {
   floating: 'Bezier nổi',
@@ -13,15 +13,6 @@ export default function EdgeSettingsPanel({ edge, onClose, onUpdate }) {
   const [strokeWidth, setStrokeWidth] = useState(edge?.style?.strokeWidth || 3);
   const [strokeColor, setStrokeColor] = useState(edge?.style?.stroke || '#64748b');
   const [label, setLabel] = useState(edge?.label || '');
-
-  useEffect(() => {
-    if (edge) {
-      setEdgeType(edge.type || 'floating');
-      setStrokeWidth(edge.style?.strokeWidth || 3);
-      setStrokeColor(edge.style?.stroke || '#64748b');
-      setLabel(edge.label || '');
-    }
-  }, [edge]);
 
   const handleSave = () => {
     if (onUpdate && edge) {
@@ -160,4 +151,3 @@ export default function EdgeSettingsPanel({ edge, onClose, onUpdate }) {
     </div>
   );
 }
-

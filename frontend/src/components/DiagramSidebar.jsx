@@ -70,7 +70,7 @@ export default function DiagramSidebar({
   if (!isOpen) {
     return (
       <aside
-        className="flex h-full w-16 flex-col items-center justify-between border-r py-5 backdrop-blur-xl"
+        className="hidden h-full w-16 flex-col items-center justify-between border-r py-5 backdrop-blur-xl lg:flex"
         style={{
           borderColor: shellTheme.panelBorder,
           background: shellTheme.panelBg,
@@ -115,13 +115,20 @@ export default function DiagramSidebar({
   }
 
   return (
-    <aside
-      className="flex h-full w-[320px] flex-col border-r backdrop-blur-xl"
-      style={{
-        borderColor: shellTheme.panelBorder,
-        background: shellTheme.panelBg,
-      }}
-    >
+    <>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="fixed inset-0 z-40 bg-slate-950/35 backdrop-blur-sm lg:hidden"
+        aria-label="Đóng danh sách sơ đồ"
+      />
+      <aside
+        className="fixed inset-y-0 left-0 z-50 flex w-[min(88vw,320px)] flex-col border-r backdrop-blur-xl lg:static lg:z-auto lg:w-[320px]"
+        style={{
+          borderColor: shellTheme.panelBorder,
+          background: shellTheme.panelBg,
+        }}
+      >
       <div className="border-b px-4 py-4" style={{ borderColor: shellTheme.panelBorder }}>
         <div className="mb-4 flex items-center justify-between">
           <div>
@@ -314,6 +321,7 @@ export default function DiagramSidebar({
           </div>
         )}
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

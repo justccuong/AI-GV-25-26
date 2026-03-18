@@ -47,35 +47,45 @@
   cursor: text;
 }
 
-.react-flow__resize-control.handle {
-  width: 18px !important;
-  height: 18px !important;
+.react-flow__resize-control.handle,
+.mindmap-resize-handle {
+  width: 22px !important;
+  height: 22px !important;
   border: 2px solid rgba(255, 255, 255, 0.96) !important;
   border-radius: 9999px !important;
   background: linear-gradient(145deg, #22d3ee, #0ea5e9) !important;
   box-shadow:
-    0 0 0 5px rgba(34, 211, 238, 0.18),
-    0 12px 26px rgba(14, 165, 233, 0.24) !important;
+    0 0 0 7px rgba(34, 211, 238, 0.18),
+    0 14px 28px rgba(14, 165, 233, 0.26) !important;
   z-index: 5;
 }
 
 .react-flow__resize-control.handle.top,
-.react-flow__resize-control.handle.bottom {
+.react-flow__resize-control.handle.bottom,
+.mindmap-resize-handle.top,
+.mindmap-resize-handle.bottom {
   transform: translate(-50%, -50%) scale(1.08);
 }
 
 .react-flow__resize-control.handle.left,
-.react-flow__resize-control.handle.right {
+.react-flow__resize-control.handle.right,
+.mindmap-resize-handle.left,
+.mindmap-resize-handle.right {
   transform: translate(-50%, -50%) scale(1.08);
 }
 
 .react-flow__resize-control.handle.top.left,
 .react-flow__resize-control.handle.top.right,
 .react-flow__resize-control.handle.bottom.left,
-.react-flow__resize-control.handle.bottom.right {
+.react-flow__resize-control.handle.bottom.right,
+.mindmap-resize-handle.top.left,
+.mindmap-resize-handle.top.right,
+.mindmap-resize-handle.bottom.left,
+.mindmap-resize-handle.bottom.right {
   transform: translate(-50%, -50%) scale(1.15);
 }
 
-.react-flow__resize-control.line {
+.react-flow__resize-control.line,
+.mindmap-resize-line {
   border-color: rgba(34, 211, 238, 0.55) !important;
 }

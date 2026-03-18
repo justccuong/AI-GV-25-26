@@ -1,8 +1,8 @@
 import { useCallback } from 'react';
-import { useStore, getBezierPath, getMarkerEnd } from 'reactflow';
+import { BaseEdge, EdgeLabelRenderer, getBezierPath, getMarkerEnd, useStore } from 'reactflow';
 import { getEdgeParams } from '../utils/floatingEdgeUtils';
 
-export default function FloatingEdge({ id, source, target, markerEnd, style }) {
+export default function FloatingEdge({ id, source, target, markerEnd, style, label }) {
   const markerEndUrl =
     typeof markerEnd === 'object' && markerEnd?.type
       ? getMarkerEnd(markerEnd.type)
@@ -15,8 +15,7 @@ export default function FloatingEdge({ id, source, target, markerEnd, style }) {
   }
 
   const { sx, sy, tx, ty, sourcePos, targetPos } = getEdgeParams(sourceNode, targetNode);
-
-  const [edgePath] = getBezierPath({
+  const [edgePath, labelX, labelY] = getBezierPath({
     sourceX: sx,
     sourceY: sy,
     sourcePosition: sourcePos,
@@ -31,14 +30,25 @@ export default function FloatingEdge({ id, source, target, markerEnd, style }) {
     stroke: style?.stroke ?? '#64748b',
     strokeDasharray: 'none',
   };
+  const visibleLabel = typeof label === 'string' ? label.trim() : '';
 
   return (
-    <path
-      id={id}
-      className="react-flow__edge-path"
-      d={edgePath}
-      markerEnd={markerEndUrl}
-      style={edgeStyle} // Dùng style mới
-    />
+    <>
+      <BaseEdge id={id} path={edgePath} markerEnd={markerEndUrl} style={edgeStyle} />
+      {visibleLabel ? (
+        <EdgeLabelRenderer>
+          <div
+            className="nodrag nopan rounded-full border border-white/12 bg-slate-950/82 px-3 py-1 text-[11px] font-medium text-slate-100 shadow-lg backdrop-blur-xl"
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+              pointerEvents: 'none',
+            }}
+          >
+            {visibleLabel}
+          </div>
+        </EdgeLabelRenderer>
+      ) : null}
+    </>
   );
 }

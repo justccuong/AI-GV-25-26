@@ -7,6 +7,19 @@ export const NODE_TYPES = {
   DECISION: 'decision',
 };
 
+export const NODE_COLOR_SWATCHES = [
+  '#ff5a99',
+  '#fb7185',
+  '#fb9b4a',
+  '#f4c842',
+  '#4fd392',
+  '#63a7ff',
+  '#9a82ff',
+  '#c084fc',
+  '#f472b6',
+  '#334155',
+];
+
 const ROOT_SIZE = 196;
 const RADIAL_BASE_RADIUS = 360;
 const RADIAL_RADIUS_STEP = 230;
@@ -138,6 +151,8 @@ function getNodeStyle({
   label,
   isRoot = false,
   accentColor,
+  branchAccentColor,
+  colorOverride,
   width,
   height,
 }) {
@@ -145,7 +160,7 @@ function getNodeStyle({
   const themeNode = theme.node;
   const themeEdge = theme.edge;
   const dimensions = getNodeDimensions({ label, nodeType, isRoot });
-  const resolvedAccent = accentColor || themeEdge.stroke;
+  const resolvedAccent = colorOverride || accentColor || branchAccentColor || themeEdge.stroke;
   const isRainbowTheme = themeId === DEFAULT_THEME_ID;
 
   const baseStyle = {
@@ -263,6 +278,8 @@ export function createDiagramNode({
   imageUrl = '',
   fontSize,
   accentColor,
+  branchAccentColor,
+  colorOverride,
 }) {
   const resolvedNodeType = normalizeNodeType(nodeType);
   const data = {
@@ -271,6 +288,8 @@ export function createDiagramNode({
     isRoot,
     imageUrl,
     accentColor,
+    branchAccentColor: branchAccentColor || accentColor,
+    colorOverride: colorOverride || '',
     fontSize:
       typeof fontSize === 'number'
         ? fontSize
@@ -292,6 +311,8 @@ export function createDiagramNode({
       label: data.label,
       isRoot,
       accentColor,
+      branchAccentColor: data.branchAccentColor,
+      colorOverride: data.colorOverride,
     }),
   };
 }
@@ -324,6 +345,8 @@ function hydrateNode(node, themeId = DEFAULT_THEME_ID) {
   const nodeType = normalizeNodeType(node.data?.nodeType || NODE_TYPES.STANDARD);
   const isRoot = Boolean(node.data?.isRoot);
   const accentColor = normalizeTextValue(node.data?.accentColor) || undefined;
+  const branchAccentColor = normalizeTextValue(node.data?.branchAccentColor) || accentColor;
+  const colorOverride = normalizeTextValue(node.data?.colorOverride) || '';
   const fontSize = typeof node.data?.fontSize === 'number'
     ? node.data.fontSize
     : Number(node.data?.fontSize) || (isRoot ? 22 : nodeType === NODE_TYPES.TEXT ? 16 : 14);
@@ -338,6 +361,8 @@ function hydrateNode(node, themeId = DEFAULT_THEME_ID) {
       fontSize,
       imageUrl: typeof node.data?.imageUrl === 'string' ? node.data.imageUrl : '',
       accentColor,
+      branchAccentColor,
+      colorOverride,
     },
     style: {
       ...getNodeStyle({
@@ -346,6 +371,8 @@ function hydrateNode(node, themeId = DEFAULT_THEME_ID) {
         label: node.data?.label,
         isRoot,
         accentColor,
+        branchAccentColor,
+        colorOverride,
         width: node.style?.width,
         height: node.style?.height,
       }),
@@ -616,6 +643,119 @@ export function autoLayoutDiagram(nodes = [], edges = [], options = {}, themeId 
   };
 }
 
+function escapeSvgText(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+export function buildDiagramThumbnail(snapshot = {}, options = {}) {
+  const nodes = Array.isArray(snapshot.nodes) ? snapshot.nodes : [];
+  const edges = Array.isArray(snapshot.edges) ? snapshot.edges : [];
+  const width = options.width || 320;
+  const height = options.height || 180;
+  const padding = 16;
+
+  if (!nodes.length) {
+    const emptySvg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+        <rect width="${width}" height="${height}" rx="20" fill="#0f172a" />
+        <text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" fill="#94a3b8" font-size="16" font-family="Segoe UI, sans-serif">Sơ đồ trống</text>
+      </svg>
+    `;
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(emptySvg.trim())}`;
+  }
+
+  const bounds = nodes.reduce(
+    (acc, node) => {
+      const nodeWidth = Number(node.style?.width) || 220;
+      const nodeHeight = Number(node.style?.height) || 80;
+      const x = Number(node.position?.x) || 0;
+      const y = Number(node.position?.y) || 0;
+
+      return {
+        minX: Math.min(acc.minX, x),
+        minY: Math.min(acc.minY, y),
+        maxX: Math.max(acc.maxX, x + nodeWidth),
+        maxY: Math.max(acc.maxY, y + nodeHeight),
+      };
+    },
+    { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
+  );
+
+  const diagramWidth = Math.max(bounds.maxX - bounds.minX, 1);
+  const diagramHeight = Math.max(bounds.maxY - bounds.minY, 1);
+  const scale = Math.min((width - padding * 2) / diagramWidth, (height - padding * 2) / diagramHeight);
+  const offsetX = (width - diagramWidth * scale) / 2 - bounds.minX * scale;
+  const offsetY = (height - diagramHeight * scale) / 2 - bounds.minY * scale;
+
+  const nodeLookup = new Map(nodes.map((node) => [String(node.id), node]));
+
+  const edgeMarkup = edges.map((edge) => {
+    const sourceNode = nodeLookup.get(String(edge.source));
+    const targetNode = nodeLookup.get(String(edge.target));
+    if (!sourceNode || !targetNode) {
+      return '';
+    }
+
+    const sourceWidth = Number(sourceNode.style?.width) || 220;
+    const sourceHeight = Number(sourceNode.style?.height) || 80;
+    const targetWidth = Number(targetNode.style?.width) || 220;
+    const targetHeight = Number(targetNode.style?.height) || 80;
+    const x1 = (Number(sourceNode.position?.x) + sourceWidth / 2) * scale + offsetX;
+    const y1 = (Number(sourceNode.position?.y) + sourceHeight / 2) * scale + offsetY;
+    const x2 = (Number(targetNode.position?.x) + targetWidth / 2) * scale + offsetX;
+    const y2 = (Number(targetNode.position?.y) + targetHeight / 2) * scale + offsetY;
+
+    return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${escapeSvgText(edge.style?.stroke || '#94a3b8')}" stroke-width="2" stroke-linecap="round" opacity="0.82" />`;
+  }).join('');
+
+  const nodeMarkup = nodes.map((node) => {
+    const nodeWidth = (Number(node.style?.width) || 220) * scale;
+    const nodeHeight = (Number(node.style?.height) || 80) * scale;
+    const x = (Number(node.position?.x) || 0) * scale + offsetX;
+    const y = (Number(node.position?.y) || 0) * scale + offsetY;
+    const label = escapeSvgText(stripHtml(node.data?.label || 'Node')).slice(0, 48);
+    const fill = escapeSvgText(node.data?.colorOverride || node.data?.accentColor || '#e2e8f0');
+    const stroke = escapeSvgText(node.style?.borderColor || node.style?.border || fill);
+    const isRoot = Boolean(node.data?.isRoot);
+    const textX = x + nodeWidth / 2;
+    const textY = y + nodeHeight / 2 + 3;
+
+    if (isRoot) {
+      const radius = Math.min(nodeWidth, nodeHeight) / 2;
+      return `
+        <circle cx="${textX}" cy="${y + nodeHeight / 2}" r="${radius}" fill="${fill}" fill-opacity="0.22" stroke="${stroke}" stroke-width="2.4" />
+        <text x="${textX}" y="${textY}" text-anchor="middle" font-size="10" font-family="Segoe UI, sans-serif" fill="#0f172a">${label}</text>
+      `;
+    }
+
+    return `
+      <rect x="${x}" y="${y}" width="${nodeWidth}" height="${nodeHeight}" rx="${Math.min(18, nodeHeight / 2)}" fill="${fill}" fill-opacity="0.18" stroke="${stroke}" stroke-width="1.8" />
+      <text x="${textX}" y="${textY}" text-anchor="middle" font-size="10" font-family="Segoe UI, sans-serif" fill="#0f172a">${label}</text>
+    `;
+  }).join('');
+
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+      <defs>
+        <linearGradient id="thumbnail-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#f8fafc" />
+          <stop offset="100%" stop-color="#e2e8f0" />
+        </linearGradient>
+      </defs>
+      <rect width="${width}" height="${height}" rx="20" fill="url(#thumbnail-bg)" />
+      ${edgeMarkup}
+      ${nodeMarkup}
+    </svg>
+  `;
+
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.trim())}`;
+}
+
 export function normalizeSavedDiagram(payload, fallbackThemeId = DEFAULT_THEME_ID) {
   if (!payload) {
     return { nodes: [], edges: [], themeId: fallbackThemeId };
@@ -671,6 +811,8 @@ export function processMindMapData(rootNode, themeId = DEFAULT_THEME_ID) {
       imageUrl: node.imageUrl || '',
       fontSize: node.fontSize,
       accentColor: nodeColor,
+      branchAccentColor: node.branchAccentColor || nodeColor,
+      colorOverride: node.colorOverride || '',
     });
 
     rawNodes.push(nextNode);
@@ -697,16 +839,50 @@ export function processMindMapData(rootNode, themeId = DEFAULT_THEME_ID) {
   return autoLayoutDiagram(rawNodes, rawEdges, {}, themeId);
 }
 
+export function collectSubtreeNodeIds(...[, edges = [], rootNodeIds = []]) {
+  const removable = new Set((rootNodeIds || []).map((value) => String(value)));
+  const adjacency = new Map();
+
+  edges.forEach((edge) => {
+    const source = String(edge.source);
+    const target = String(edge.target);
+    const currentTargets = adjacency.get(source) || [];
+    currentTargets.push(target);
+    adjacency.set(source, currentTargets);
+  });
+
+  const queue = [...removable];
+  while (queue.length) {
+    const currentId = queue.shift();
+    (adjacency.get(String(currentId)) || []).forEach((childId) => {
+      if (removable.has(childId)) {
+        return;
+      }
+
+      removable.add(childId);
+      queue.push(childId);
+    });
+  }
+
+  return removable;
+}
+
 function removeNodesAndConnectedEdges(nodeMap, edgeMap, removeNodeIds, removeEdgeIds) {
-  removeNodeIds.forEach((nodeId) => {
+  const cascadeNodeIds = collectSubtreeNodeIds(
+    Array.from(nodeMap.values()),
+    Array.from(edgeMap.values()),
+    Array.from(removeNodeIds)
+  );
+
+  cascadeNodeIds.forEach((nodeId) => {
     nodeMap.delete(nodeId);
   });
 
   Array.from(edgeMap.entries()).forEach(([edgeId, edge]) => {
     if (
       removeEdgeIds.has(edgeId) ||
-      removeNodeIds.has(edge.source) ||
-      removeNodeIds.has(edge.target)
+      cascadeNodeIds.has(edge.source) ||
+      cascadeNodeIds.has(edge.target)
     ) {
       edgeMap.delete(edgeId);
     }
@@ -764,6 +940,12 @@ export function mergeAssistantDiagram(currentNodes = [], currentEdges = [], payl
     const existingNode = nodeMap.get(nextId);
     const parentId = normalizeTextValue(nodeUpdate.parentId);
     const accentColor = normalizeTextValue(nodeUpdate.accentColor) || existingNode?.data?.accentColor;
+    const branchAccentColor = normalizeTextValue(nodeUpdate.branchAccentColor)
+      || existingNode?.data?.branchAccentColor
+      || accentColor;
+    const colorOverride = Object.prototype.hasOwnProperty.call(nodeUpdate, 'colorOverride')
+      ? normalizeTextValue(nodeUpdate.colorOverride)
+      : existingNode?.data?.colorOverride || '';
     const labelProvided = typeof nodeUpdate.label === 'string';
     const nextLabel = labelProvided
       ? getResolvedNodeLabel(nodeUpdate.label, nodeType)
@@ -784,6 +966,8 @@ export function mergeAssistantDiagram(currentNodes = [], currentEdges = [], payl
                 ? { fontSize: getNodeUpdateFontSize(nodeUpdate.fontSize, existingNode.data?.fontSize) }
                 : {}),
               ...(accentColor ? { accentColor } : {}),
+              ...(branchAccentColor ? { branchAccentColor } : {}),
+              colorOverride,
             },
           },
           nextThemeId
@@ -808,6 +992,8 @@ export function mergeAssistantDiagram(currentNodes = [], currentEdges = [], payl
           imageUrl: nodeUpdate.imageUrl || '',
           fontSize: getNodeUpdateFontSize(nodeUpdate.fontSize, undefined),
           accentColor,
+          branchAccentColor,
+          colorOverride,
           position: basePosition,
         })
       );

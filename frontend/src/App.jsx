@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import Header from './components/Header';
+import DiagramsDashboard from './pages/DiagramsDashboard';
 import MindMapEditor from './pages/MindMapEditor';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -40,7 +41,7 @@ export default function App() {
             path="/diagrams"
             element={
               <PrivateRoute>
-                <MindMapEditor />
+                <DiagramsDashboard />
               </PrivateRoute>
             }
           />

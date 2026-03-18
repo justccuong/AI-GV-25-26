@@ -33,9 +33,15 @@ export function getApiErrorMessage(error, fallbackMessage = 'Đã có lỗi xả
   return fallbackMessage;
 }
 
-export async function uploadImage(file) {
+export async function uploadImages(files) {
   const formData = new FormData();
-  formData.append('file', file);
+  const normalizedFiles = Array.isArray(files) ? files : [files];
+
+  normalizedFiles.forEach((file) => {
+    if (file) {
+      formData.append('files', file);
+    }
+  });
 
   const response = await axiosClient.post('/analyze-note', formData, {
     headers: {
@@ -44,6 +50,10 @@ export async function uploadImage(file) {
   });
 
   return response.data;
+}
+
+export async function uploadImage(file) {
+  return uploadImages([file]);
 }
 
 export async function loginUser(email, password) {
@@ -88,6 +98,16 @@ export async function deleteMindMap(id) {
 
 export async function generateAssistantMindMap(payload) {
   const response = await axiosClient.post('/assistant/mindmap', payload);
+  return response.data;
+}
+
+export async function getCurrentProfile() {
+  const response = await axiosClient.get('/me');
+  return response.data;
+}
+
+export async function updateCurrentProfile(payload) {
+  const response = await axiosClient.put('/me', payload);
   return response.data;
 }
 

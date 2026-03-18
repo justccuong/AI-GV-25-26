@@ -1,16 +1,22 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import ReactFlow, { Background, EdgeLabelRenderer, MiniMap, Panel, useReactFlow } from 'reactflow';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import ReactFlow, { Background, MiniMap, Panel, useReactFlow } from 'reactflow';
 import 'reactflow/dist/style.css';
 import {
+  Check,
+  ChevronDown,
+  ChevronUp,
   Diamond,
   ImagePlus,
   LayoutGrid,
   Link2,
   Maximize2,
   Palette,
+  PenSquare,
   Redo2,
+  RotateCcw,
   Save,
   Square,
+  Trash2,
   Type,
   Undo2,
   ZoomIn,
@@ -21,11 +27,13 @@ import EditableNode from './EditableNode';
 import EdgeSettingsPanel from './EdgeSettingsPanel';
 import FloatingEdge from './FloatingEdge';
 import {
+  collectSubtreeNodeIds,
   createDiagramEdge,
   createDiagramNode,
   createNodeId,
+  NODE_COLOR_SWATCHES,
   NODE_TYPES,
-  normalizeEdgeLabel,
+  stripHtml,
 } from '../utils/graphUtils';
 import { getTheme, THEME_IDS, themes } from '../utils/themeConfig';
 
@@ -42,7 +50,7 @@ function extractColorToken(value, fallback) {
 }
 
 function ToolbarButton({
-  icon: Icon,
+  icon,
   label,
   active = false,
   disabled = false,
@@ -50,6 +58,8 @@ function ToolbarButton({
   buttonStyle,
   activeStyle,
 }) {
+  const IconComponent = icon;
+
   return (
     <button
       type="button"
@@ -62,7 +72,7 @@ function ToolbarButton({
       style={active ? activeStyle : buttonStyle}
       title={label}
     >
-      <Icon className="h-4 w-4" />
+      <IconComponent className="h-4 w-4" />
       <span className="hidden xl:inline">{label}</span>
     </button>
   );
@@ -108,7 +118,7 @@ function FlowToolbar({
   };
 
   return (
-    <Panel position="top-center" className="pointer-events-none mt-4 w-[min(100%-2rem,1180px)]">
+    <Panel position="top-center" className="pointer-events-none mt-4 hidden w-[min(100%-2rem,1180px)] lg:block">
       <div
         className="pointer-events-auto rounded-[2rem] border px-3 py-3 shadow-2xl backdrop-blur-2xl"
         style={{
@@ -188,6 +198,136 @@ function FlowToolbar({
   );
 }
 
+function MobileToolbarSheet({
+  containerRef,
+  toolMode,
+  setToolMode,
+  isOpen,
+  onToggle,
+  onAddNode,
+  onAutoLayout,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
+  onOpenUploadPanel,
+  onSave,
+  saveState,
+  themeId,
+  onThemeChange,
+}) {
+  const { fitView, screenToFlowPosition, zoomIn, zoomOut } = useReactFlow();
+  const shellTheme = getTheme(themeId).shell || {};
+
+  const addNodeAtCenter = (nodeType) => {
+    const bounds = containerRef.current?.getBoundingClientRect();
+    const position = screenToFlowPosition({
+      x: bounds ? bounds.left + bounds.width / 2 : window.innerWidth / 2,
+      y: bounds ? bounds.top + bounds.height / 2 : window.innerHeight / 2,
+    });
+
+    onAddNode(nodeType, position);
+    onToggle(false);
+  };
+
+  if (!isOpen) {
+    return (
+      <Panel position="bottom-center" className="pointer-events-none mb-4 lg:hidden">
+        <button
+          type="button"
+          onClick={() => onToggle(true)}
+          className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/85 px-4 py-3 text-sm font-semibold text-white shadow-2xl backdrop-blur-xl"
+        >
+          <LayoutGrid className="h-4 w-4 text-cyan-300" />
+          Công cụ
+          <ChevronUp className="h-4 w-4 text-cyan-300" />
+        </button>
+      </Panel>
+    );
+  }
+
+  return (
+    <Panel position="bottom-center" className="pointer-events-none mb-4 w-[min(100%-1.5rem,620px)] lg:hidden">
+      <div
+        className="pointer-events-auto rounded-[2rem] border p-4 shadow-2xl backdrop-blur-2xl"
+        style={{
+          borderColor: shellTheme.panelBorder,
+          background: shellTheme.panelStrongBg,
+        }}
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-sm font-semibold" style={{ color: shellTheme.panelText }}>
+            Công cụ canvas
+          </p>
+          <button
+            type="button"
+            onClick={() => onToggle(false)}
+            className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium"
+            style={{
+              background: shellTheme.accentSoft,
+              color: shellTheme.panelText,
+            }}
+          >
+            Thu gọn
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          <ToolbarButton icon={Square} label="Nút" onClick={() => addNodeAtCenter(NODE_TYPES.STANDARD)} buttonStyle={{ background: shellTheme.accentSoft, color: shellTheme.panelText }} activeStyle={{ background: shellTheme.accent, color: '#fff' }} />
+          <ToolbarButton icon={Type} label="Văn bản" onClick={() => addNodeAtCenter(NODE_TYPES.TEXT)} buttonStyle={{ background: shellTheme.accentSoft, color: shellTheme.panelText }} activeStyle={{ background: shellTheme.accent, color: '#fff' }} />
+          <ToolbarButton icon={ImagePlus} label="Ảnh" onClick={() => addNodeAtCenter(NODE_TYPES.IMAGE)} buttonStyle={{ background: shellTheme.accentSoft, color: shellTheme.panelText }} activeStyle={{ background: shellTheme.accent, color: '#fff' }} />
+          <ToolbarButton icon={Diamond} label="Quyết định" onClick={() => addNodeAtCenter(NODE_TYPES.DECISION)} buttonStyle={{ background: shellTheme.accentSoft, color: shellTheme.panelText }} activeStyle={{ background: shellTheme.accent, color: '#fff' }} />
+          <ToolbarButton
+            icon={Link2}
+            label="Nối cạnh"
+            active={toolMode === 'connect'}
+            onClick={() => {
+              setToolMode((current) => (current === 'connect' ? 'select' : 'connect'));
+              onToggle(false);
+            }}
+            buttonStyle={{ background: shellTheme.accentSoft, color: shellTheme.panelText }}
+            activeStyle={{ background: shellTheme.accent, color: '#fff' }}
+          />
+          <ToolbarButton icon={LayoutGrid} label="Bố cục" onClick={() => { onAutoLayout(); fitView({ padding: 0.2, duration: 250 }); }} buttonStyle={{ background: shellTheme.accentSoft, color: shellTheme.panelText }} activeStyle={{ background: shellTheme.accent, color: '#fff' }} />
+          <ToolbarButton icon={ImagePlus} label="OCR" onClick={onOpenUploadPanel} buttonStyle={{ background: shellTheme.accentSoft, color: shellTheme.panelText }} activeStyle={{ background: shellTheme.accent, color: '#fff' }} />
+          <ToolbarButton icon={Undo2} label="Hoàn tác" onClick={onUndo} disabled={!canUndo} buttonStyle={{ background: shellTheme.accentSoft, color: shellTheme.panelText }} activeStyle={{ background: shellTheme.accent, color: '#fff' }} />
+          <ToolbarButton icon={Redo2} label="Làm lại" onClick={onRedo} disabled={!canRedo} buttonStyle={{ background: shellTheme.accentSoft, color: shellTheme.panelText }} activeStyle={{ background: shellTheme.accent, color: '#fff' }} />
+          <ToolbarButton icon={Maximize2} label="Vừa khung" onClick={() => fitView({ padding: 0.2, duration: 250 })} buttonStyle={{ background: shellTheme.accentSoft, color: shellTheme.panelText }} activeStyle={{ background: shellTheme.accent, color: '#fff' }} />
+          <ToolbarButton icon={ZoomOut} label="Thu nhỏ" onClick={() => zoomOut({ duration: 200 })} buttonStyle={{ background: shellTheme.accentSoft, color: shellTheme.panelText }} activeStyle={{ background: shellTheme.accent, color: '#fff' }} />
+          <ToolbarButton icon={ZoomIn} label="Phóng to" onClick={() => zoomIn({ duration: 200 })} buttonStyle={{ background: shellTheme.accentSoft, color: shellTheme.panelText }} activeStyle={{ background: shellTheme.accent, color: '#fff' }} />
+          <button
+            type="button"
+            onClick={onSave}
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-cyan-400 px-3 py-2.5 text-sm font-semibold text-slate-950 shadow-lg"
+          >
+            <Save className="h-4 w-4" />
+            {saveState === 'saving' ? 'Lưu...' : 'Lưu'}
+          </button>
+        </div>
+
+        <div className="mt-3 rounded-2xl border px-3 py-2" style={{ borderColor: shellTheme.panelBorder }}>
+          <div className="flex items-center gap-2 text-sm" style={{ color: shellTheme.panelText }}>
+            <Palette className="h-4 w-4" style={{ color: shellTheme.accent }} />
+            <select
+              value={themeId}
+              onChange={(event) => onThemeChange(event.target.value)}
+              className="w-full bg-transparent outline-none"
+              aria-label="Chọn giao diện"
+            >
+              {Object.values(THEME_IDS).map((id) => (
+                <option key={id} value={id} className="bg-slate-900 text-white">
+                  {themes[id].name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
 function AutoFitController({ fitViewNonce }) {
   const { fitView } = useReactFlow();
 
@@ -231,10 +371,31 @@ export default function MindMapViewer({
   const [selectedEdge, setSelectedEdge] = useState(null);
   const [toolMode, setToolMode] = useState('select');
   const [connectSourceNodeId, setConnectSourceNodeId] = useState(null);
-  const [editingEdgeLabel, setEditingEdgeLabel] = useState(null);
+  const [nodeMenu, setNodeMenu] = useState(null);
+  const [editingNodeId, setEditingNodeId] = useState(null);
+  const [mobileToolbarOpen, setMobileToolbarOpen] = useState(false);
   const containerRef = useRef(null);
   const theme = getTheme(themeId);
   const shellTheme = theme.shell || {};
+  const closeNodeMenu = useCallback(() => setNodeMenu(null), []);
+
+  const openNodeMenu = useCallback((event, node) => {
+    const bounds = containerRef.current?.getBoundingClientRect();
+    if (!bounds) {
+      return;
+    }
+
+    const rawX = event.clientX - bounds.left;
+    const rawY = event.clientY - bounds.top;
+    const menuWidth = 280;
+    const menuHeight = 320;
+
+    setNodeMenu({
+      nodeId: node.id,
+      x: Math.min(Math.max(rawX, 12), Math.max(bounds.width - menuWidth - 12, 12)),
+      y: Math.min(Math.max(rawY, 12), Math.max(bounds.height - menuHeight - 12, 12)),
+    });
+  }, []);
 
   const addNode = useCallback(
     (nodeType, position) => {
@@ -247,8 +408,9 @@ export default function MindMapViewer({
 
       setNodes((currentNodes) => [...currentNodes, nextNode]);
       setToolMode('select');
+      closeNodeMenu();
     },
-    [setNodes, themeId]
+    [closeNodeMenu, setNodes, themeId]
   );
 
   const handleAddChild = useCallback(
@@ -259,6 +421,8 @@ export default function MindMapViewer({
         return;
       }
 
+      const branchColor =
+        parentNode.data?.branchAccentColor || parentNode.data?.accentColor || theme.edge.stroke;
       const nextNode = createDiagramNode({
         id: createNodeId('child'),
         nodeType: NODE_TYPES.STANDARD,
@@ -267,35 +431,52 @@ export default function MindMapViewer({
           x: parentNode.position.x + (Number(parentNode.style?.width) || 220) + 120,
           y: parentNode.position.y + 120,
         },
-        accentColor: parentNode.data?.accentColor || theme.edge.stroke,
+        accentColor: branchColor,
+        branchAccentColor: branchColor,
       });
       const nextEdge = createDiagramEdge({
         source: parentNode.id,
         target: nextNode.id,
         themeId,
-        accentColor: parentNode.data?.accentColor || theme.edge.stroke,
+        accentColor: branchColor,
       });
 
       setNodes((currentNodes) => [...currentNodes, nextNode]);
       setEdges((currentEdges) => [...currentEdges, nextEdge]);
+      closeNodeMenu();
     },
-    [nodes, setEdges, setNodes, theme.edge.stroke, themeId]
+    [closeNodeMenu, nodes, setEdges, setNodes, theme.edge.stroke, themeId]
   );
 
   const handleDeleteNode = useCallback(
     (nodeId) => {
-      setNodes((currentNodes) => currentNodes.filter((node) => node.id !== nodeId));
+      const cascadeNodeIds = collectSubtreeNodeIds(nodes, edges, [nodeId]);
+
+      setNodes((currentNodes) =>
+        currentNodes.filter((node) => !cascadeNodeIds.has(String(node.id)))
+      );
       setEdges((currentEdges) =>
-        currentEdges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId)
+        currentEdges.filter(
+          (edge) =>
+            !cascadeNodeIds.has(String(edge.source)) && !cascadeNodeIds.has(String(edge.target))
+        )
       );
       setSelectedEdge((currentEdge) =>
-        currentEdge && (currentEdge.source === nodeId || currentEdge.target === nodeId)
+        currentEdge && (cascadeNodeIds.has(String(currentEdge.source)) || cascadeNodeIds.has(String(currentEdge.target)))
           ? null
           : currentEdge
       );
-      setConnectSourceNodeId((currentSource) => (currentSource === nodeId ? null : currentSource));
+      setConnectSourceNodeId((currentSource) =>
+        currentSource && cascadeNodeIds.has(String(currentSource)) ? null : currentSource
+      );
+      setEditingNodeId((currentNodeId) =>
+        currentNodeId && cascadeNodeIds.has(String(currentNodeId)) ? null : currentNodeId
+      );
+      setNodeMenu((currentMenu) =>
+        currentMenu && cascadeNodeIds.has(String(currentMenu.nodeId)) ? null : currentMenu
+      );
     },
-    [setEdges, setNodes]
+    [edges, nodes, setEdges, setNodes]
   );
 
   const handleConnect = useCallback(
@@ -313,13 +494,32 @@ export default function MindMapViewer({
         }),
       ]);
       setConnectSourceNodeId(null);
+      closeNodeMenu();
     },
-    [setEdges, themeId]
+    [closeNodeMenu, setEdges, themeId]
   );
+
+  const handleToggleNodeEditing = useCallback((nodeId) => {
+    setEditingNodeId((currentNodeId) => (currentNodeId === nodeId ? null : nodeId));
+    closeNodeMenu();
+  }, [closeNodeMenu]);
+
+  const handleFinishEditing = useCallback((nodeId) => {
+    setEditingNodeId((currentNodeId) => (currentNodeId === nodeId ? null : currentNodeId));
+  }, []);
+
+  const handleNodeColorChange = useCallback((nodeId, color) => {
+    onNodeDataChange(nodeId, { colorOverride: color || '' });
+    closeNodeMenu();
+  }, [closeNodeMenu, onNodeDataChange]);
 
   const handleNodeClick = useCallback(
     (event, node) => {
       if (toolMode !== 'connect') {
+        event.stopPropagation();
+        setSelectedEdge(null);
+        setMobileToolbarOpen(false);
+        openNodeMenu(event, node);
         return;
       }
 
@@ -345,38 +545,35 @@ export default function MindMapViewer({
       ]);
       setConnectSourceNodeId(null);
     },
-    [connectSourceNodeId, setEdges, themeId, toolMode]
+    [connectSourceNodeId, openNodeMenu, setEdges, themeId, toolMode]
+  );
+
+  const handleNodeContextMenu = useCallback(
+    (event, node) => {
+      event.preventDefault();
+      if (toolMode === 'connect') {
+        return;
+      }
+
+      setSelectedEdge(null);
+      setMobileToolbarOpen(false);
+      openNodeMenu(event, node);
+    },
+    [openNodeMenu, toolMode]
   );
 
   const handlePaneClick = useCallback(() => {
     setSelectedEdge(null);
-    setEditingEdgeLabel(null);
     setConnectSourceNodeId(null);
-  }, []);
+    closeNodeMenu();
+    setMobileToolbarOpen(false);
+  }, [closeNodeMenu]);
 
   const handleEdgeClick = useCallback((event, edge) => {
     event.stopPropagation();
+    closeNodeMenu();
     setSelectedEdge(edge);
-  }, []);
-
-  const handleEdgeLabelChange = useCallback(
-    (edgeId, newLabel) => {
-      const normalizedLabel = normalizeEdgeLabel(newLabel);
-
-      setEdges((currentEdges) =>
-        currentEdges.map((edge) =>
-          edge.id === edgeId
-            ? {
-                ...edge,
-                label: normalizedLabel,
-              }
-            : edge
-        )
-      );
-      setEditingEdgeLabel(null);
-    },
-    [setEdges]
-  );
+  }, [closeNodeMenu]);
 
   const enhancedNodes = useMemo(
     () =>
@@ -387,13 +584,15 @@ export default function MindMapViewer({
           style: node.style,
           disableEditing: toolMode === 'connect',
           isConnectSource: node.id === connectSourceNodeId,
+          isEditingActive: editingNodeId === node.id,
           onDataChange: onNodeDataChange,
+          onFinishEditing: handleFinishEditing,
           onAddChild: () => handleAddChild(node.id),
           onDelete: () => handleDeleteNode(node.id),
         },
         draggable: toolMode !== 'connect',
       })),
-    [connectSourceNodeId, handleAddChild, handleDeleteNode, nodes, onNodeDataChange, toolMode]
+    [connectSourceNodeId, editingNodeId, handleAddChild, handleDeleteNode, handleFinishEditing, nodes, onNodeDataChange, toolMode]
   );
 
   return (
@@ -412,6 +611,8 @@ export default function MindMapViewer({
         onNodesDelete={onNodesDelete}
         onConnect={handleConnect}
         onNodeClick={handleNodeClick}
+        onNodeContextMenu={handleNodeContextMenu}
+        onNodeDragStart={closeNodeMenu}
         onEdgeClick={handleEdgeClick}
         onPaneClick={handlePaneClick}
         nodeTypes={nodeTypes}
@@ -464,77 +665,134 @@ export default function MindMapViewer({
           onThemeChange={onThemeChange}
         />
 
+        <MobileToolbarSheet
+          containerRef={containerRef}
+          toolMode={toolMode}
+          setToolMode={setToolMode}
+          isOpen={mobileToolbarOpen}
+          onToggle={setMobileToolbarOpen}
+          onAddNode={addNode}
+          onAutoLayout={onAutoLayout}
+          onUndo={onUndo}
+          onRedo={onRedo}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onOpenUploadPanel={onOpenUploadPanel}
+          onSave={onSave}
+          saveState={saveState}
+          themeId={themeId}
+          onThemeChange={onThemeChange}
+        />
+
         <AutoFitController fitViewNonce={fitViewNonce} />
+      </ReactFlow>
 
-        <EdgeLabelRenderer>
-          {edges.map((edge) => {
-            const visibleLabel = normalizeEdgeLabel(edge.label);
+      {nodeMenu && (
+        <div
+          className="absolute z-30 w-72 rounded-[1.75rem] border p-4 shadow-2xl backdrop-blur-2xl"
+          style={{
+            left: nodeMenu.x,
+            top: nodeMenu.y,
+            borderColor: shellTheme.panelBorder,
+            background: shellTheme.panelStrongBg,
+          }}
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="mb-3">
+            <p className="text-[11px] uppercase tracking-[0.24em]" style={{ color: shellTheme.accent }}>
+              Tùy chọn node
+            </p>
+            <h3 className="mt-1 text-base font-semibold" style={{ color: shellTheme.panelText }}>
+              {stripHtml(nodes.find((node) => node.id === nodeMenu.nodeId)?.data?.label) || 'Node đang chọn'}
+            </h3>
+          </div>
 
-            if (!visibleLabel && editingEdgeLabel !== edge.id) {
-              return null;
-            }
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => handleDeleteNode(nodeMenu.nodeId)}
+              className="flex w-full items-center gap-3 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-left text-sm font-medium text-rose-200 transition-colors hover:bg-rose-500/15"
+            >
+              <Trash2 className="h-4 w-4" />
+              Xóa Node
+            </button>
 
-            const sourceNode = nodes.find((node) => node.id === edge.source);
-            const targetNode = nodes.find((node) => node.id === edge.target);
+            <button
+              type="button"
+              onClick={() => handleToggleNodeEditing(nodeMenu.nodeId)}
+              className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium transition-colors hover:brightness-105"
+              style={{
+                background: shellTheme.accentSoft,
+                color: shellTheme.panelText,
+              }}
+            >
+              <PenSquare className="h-4 w-4" />
+              {editingNodeId === nodeMenu.nodeId ? 'Đang chỉnh sửa' : 'Chỉnh sửa nội dung'}
+            </button>
 
-            if (!sourceNode || !targetNode) {
-              return null;
-            }
+            <button
+              type="button"
+              onClick={() => handleAddChild(nodeMenu.nodeId)}
+              className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium transition-colors hover:brightness-105"
+              style={{
+                background: shellTheme.accentSoft,
+                color: shellTheme.panelText,
+              }}
+            >
+              <Link2 className="h-4 w-4" />
+              Thêm nhánh con
+            </button>
+          </div>
 
-            const sourceWidth = Number(sourceNode.style?.width) || 220;
-            const sourceHeight = Number(sourceNode.style?.height) || 80;
-            const targetWidth = Number(targetNode.style?.width) || 220;
-            const targetHeight = Number(targetNode.style?.height) || 80;
-            const midpointX = (sourceNode.position.x + sourceWidth / 2 + targetNode.position.x + targetWidth / 2) / 2;
-            const midpointY = (sourceNode.position.y + sourceHeight / 2 + targetNode.position.y + targetHeight / 2) / 2;
-
-            return (
-              <div
-                key={edge.id}
-                className="nodrag"
+          <div className="mt-4 rounded-2xl border p-3" style={{ borderColor: shellTheme.panelBorder }}>
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Palette className="h-4 w-4" style={{ color: shellTheme.accent }} />
+                <span className="text-sm font-semibold" style={{ color: shellTheme.panelText }}>
+                  Đổi màu node
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleNodeColorChange(nodeMenu.nodeId, '')}
+                className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors hover:brightness-105"
                 style={{
-                  position: 'absolute',
-                  transform: `translate(-50%, -50%) translate(${midpointX}px, ${midpointY}px)`,
-                  pointerEvents: 'all',
+                  background: shellTheme.accentSoft,
+                  color: shellTheme.panelText,
                 }}
               >
-                {editingEdgeLabel === edge.id ? (
-                  <input
-                    type="text"
-                    defaultValue={visibleLabel}
-                    onBlur={(event) => handleEdgeLabelChange(edge.id, event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        event.currentTarget.blur();
-                      }
+                <RotateCcw className="h-3.5 w-3.5" />
+                Mặc định
+              </button>
+            </div>
 
-                      if (event.key === 'Escape') {
-                        setEditingEdgeLabel(null);
-                      }
-                    }}
-                    className="rounded-full border border-cyan-300/60 bg-white/95 px-3 py-1 text-xs text-slate-900 shadow-lg outline-none"
-                    autoFocus
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setEditingEdgeLabel(edge.id);
-                    }}
-                    className="rounded-full border border-white/10 bg-slate-950/80 px-3 py-1 text-xs text-slate-100 shadow-lg backdrop-blur-xl transition-colors hover:bg-slate-900"
-                  >
-                    {visibleLabel}
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </EdgeLabelRenderer>
-      </ReactFlow>
+            <div className="grid grid-cols-5 gap-2">
+              {NODE_COLOR_SWATCHES.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  onClick={() => handleNodeColorChange(nodeMenu.nodeId, color)}
+                  className="flex h-11 w-full items-center justify-center rounded-2xl border transition-transform hover:scale-[1.03]"
+                  style={{
+                    background: color,
+                    borderColor: 'rgba(255,255,255,0.35)',
+                  }}
+                  title={`Đổi sang màu ${color}`}
+                >
+                  {nodes.find((node) => node.id === nodeMenu.nodeId)?.data?.colorOverride === color && (
+                    <Check className="h-4 w-4 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.45)]" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {selectedEdge && (
         <EdgeSettingsPanel
+          key={selectedEdge.id}
           edge={selectedEdge}
           onClose={() => setSelectedEdge(null)}
           onUpdate={(updatedEdge) => {
@@ -568,4 +826,3 @@ export default function MindMapViewer({
     </div>
   );
 }
-

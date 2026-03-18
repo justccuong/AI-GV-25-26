@@ -638,12 +638,18 @@ def serialize_mindmap(mindmap: models.MindMap) -> Dict[str, Any]:
     except json.JSONDecodeError:
         data = {}
 
+    nodes = data.get('nodes') if isinstance(data.get('nodes'), list) else []
+    edges = data.get('edges') if isinstance(data.get('edges'), list) else []
+
     return {
         'id': mindmap.id,
         'title': mindmap.title,
         'data': data,
         'created_at': mindmap.created_at,
         'updated_at': mindmap.updated_at,
+        'thumbnail': normalize_text(data.get('thumbnail')),
+        'node_count': len(nodes),
+        'edge_count': len(edges),
     }
 
 
@@ -656,6 +662,14 @@ def get_mindmap_or_404(db: Session, mindmap_id: int, owner_id: int) -> models.Mi
     if not mindmap:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Không tìm thấy sơ đồ tư duy.')
     return mindmap
+
+
+def derive_profile_name(email: str) -> str:
+    local_part = normalize_text(email).split('@')[0]
+    normalized = local_part.replace('.', ' ').replace('_', ' ').replace('-', ' ').strip()
+    if not normalized:
+        return 'Người dùng EduMind'
+    return ' '.join(part.capitalize() for part in normalized.split())
 
 
 def generate_mindmap_with_ai(prompt: str, current_diagram: Dict[str, Any] | None = None) -> Dict[str, Any]:
@@ -740,17 +754,28 @@ def read_root():
 
 
 @app.post('/analyze-note')
-async def analyze_note(file: UploadFile = File(...)):
+async def analyze_note(files: list[UploadFile] = File(...)):
     try:
-        contents = await file.read()
-        image = Image.open(io.BytesIO(contents))
+        if not files:
+            raise HTTPException(status_code=400, detail='Vui lòng tải lên ít nhất một ảnh ghi chú.')
+
+        images = []
+        filenames = []
+        for file in files:
+            contents = await file.read()
+            images.append(Image.open(io.BytesIO(contents)))
+            filenames.append(file.filename or 'Trang ghi chú')
+
+        combined_label = ', '.join(filenames[:3])
+        if len(filenames) > 3:
+            combined_label = f'{combined_label} và {len(filenames) - 3} trang khác'
 
         if gemini_model is None:
-            root = fallback_mindmap(f'Ghi chú từ ảnh: {file.filename or "Tài liệu"}')
+            root = fallback_mindmap(f'Ghi chú nhiều trang: {combined_label}')
             return {'title': root['label'], 'root': root}
 
         prompt = """
-Analyze this study note image and convert it into a concise mind map.
+Analyze all provided study note images together as one continuous document and convert them into a single concise mind map.
 Return JSON only.
 Schema:
 {
@@ -763,13 +788,14 @@ Schema:
 Rules:
 - keep labels short
 - every node must include id, label, children
+- combine the context from all pages before deciding the final branches
 - do not output markdown
 """
         response = gemini_model.generate_content(
-            [prompt, image],
+            [prompt, *images],
             generation_config={'response_mime_type': 'application/json'},
         )
-        root = normalize_generated_tree(parse_json_payload(response.text), file.filename or 'Ghi chú học tập')
+        root = normalize_generated_tree(parse_json_payload(response.text), combined_label or 'Ghi chú học tập')
         return {'title': root['label'], 'root': root}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f'Phân tích ảnh thất bại: {exc}') from exc
@@ -799,6 +825,45 @@ def login_user(user: schemas.UserLogin, db: Session = Depends(get_db)):
 
     access_token = auth.create_access_token(data={'sub': db_user.email})
     return {'access_token': access_token, 'token_type': 'bearer'}
+
+
+@app.get('/me', response_model=schemas.UserProfileResponse)
+def get_current_profile(current_user: models.User = Depends(auth.get_current_user)):
+    return {
+        'name': derive_profile_name(current_user.email),
+        'email': current_user.email,
+        'access_token': None,
+    }
+
+
+@app.put('/me', response_model=schemas.UserProfileResponse)
+def update_current_profile(
+    payload: schemas.UserProfileUpdate,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db),
+):
+    next_email = normalize_text(payload.email) or current_user.email
+    next_token = None
+
+    if next_email != current_user.email:
+        existing_user = (
+            db.query(models.User)
+            .filter(models.User.email == next_email, models.User.id != current_user.id)
+            .first()
+        )
+        if existing_user:
+            raise HTTPException(status_code=400, detail='Email này đã được sử dụng bởi tài khoản khác.')
+
+        current_user.email = next_email
+        db.commit()
+        db.refresh(current_user)
+        next_token = auth.create_access_token(data={'sub': current_user.email})
+
+    return {
+        'name': normalize_text(payload.name) or derive_profile_name(current_user.email),
+        'email': current_user.email,
+        'access_token': next_token,
+    }
 
 
 @app.get('/mindmaps', response_model=list[schemas.MindMapSummary])

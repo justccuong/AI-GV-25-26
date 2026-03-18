@@ -1,5 +1,14 @@
-﻿import React, { useMemo, useState } from 'react';
-import { ChevronDown, LogOut, PanelLeftOpen, Settings, Sparkles, UserCircle2 } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  ChevronDown,
+  LogOut,
+  Menu,
+  PanelLeftOpen,
+  Settings,
+  Sparkles,
+  UserCircle2,
+  X,
+} from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 function decodeTokenEmail() {
@@ -18,13 +27,33 @@ function decodeTokenEmail() {
   }
 }
 
-function NavPill({ active, label, onClick }) {
+function deriveProfileName(email) {
+  if (!email) {
+    return 'Người dùng EduMind';
+  }
+
+  const local = email.split('@')[0] || '';
+  return local
+    .replace(/[._-]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function getStoredProfileName(email) {
+  return localStorage.getItem('profile_name') || deriveProfileName(email);
+}
+
+function NavPill({ active, label, onClick, fullWidth = false }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={[
         'rounded-full px-4 py-2 text-sm font-medium transition-all duration-200',
+        fullWidth ? 'w-full text-left' : '',
         active
           ? 'bg-cyan-400/15 text-cyan-200 shadow-[0_0_0_1px_rgba(34,211,238,0.25)]'
           : 'text-slate-300 hover:bg-white/5 hover:text-white',
@@ -39,16 +68,35 @@ export default function Header() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [, setProfileRefreshTick] = useState(0);
   const isLoggedIn = !!localStorage.getItem('access_token');
   const email = decodeTokenEmail();
+  const profileName = getStoredProfileName(email);
+
+  useEffect(() => {
+    const syncProfile = () => setProfileRefreshTick((current) => current + 1);
+
+    window.addEventListener('storage', syncProfile);
+    window.addEventListener('profile-updated', syncProfile);
+
+    return () => {
+      window.removeEventListener('storage', syncProfile);
+      window.removeEventListener('profile-updated', syncProfile);
+    };
+  }, []);
 
   const initials = useMemo(() => {
-    if (!email) {
-      return 'AI';
-    }
+    const source = profileName || email || 'AI';
+    const letters = source
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((part) => part[0])
+      .join('')
+      .slice(0, 2);
 
-    return email.slice(0, 2).toUpperCase();
-  }, [email]);
+    return (letters || 'AI').toUpperCase();
+  }, [email, profileName]);
 
   const isWorkspaceActive = location.pathname.startsWith('/workspace') || location.pathname.startsWith('/editor/');
   const isDiagramsActive = location.pathname.startsWith('/diagrams');
@@ -56,8 +104,16 @@ export default function Header() {
 
   const handleLogout = () => {
     localStorage.removeItem('access_token');
+    localStorage.removeItem('profile_name');
     setIsProfileOpen(false);
+    setIsMobileMenuOpen(false);
     navigate('/login');
+  };
+
+  const navigateAndClose = (path) => {
+    setIsMobileMenuOpen(false);
+    setIsProfileOpen(false);
+    navigate(path);
   };
 
   return (
@@ -87,6 +143,17 @@ export default function Header() {
         )}
 
         <div className="flex items-center gap-3">
+          {isLoggedIn && (
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen((value) => !value)}
+              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-200 lg:hidden"
+              aria-label="Mở menu điều hướng"
+            >
+              {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+          )}
+
           {isLoggedIn ? (
             <div className="relative">
               <button
@@ -98,8 +165,8 @@ export default function Header() {
                   {initials}
                 </div>
                 <div className="hidden sm:block">
-                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Đã đăng nhập</p>
-                  <p className="max-w-52 truncate text-sm font-medium text-white">{email || 'Người dùng không gian vẽ'}</p>
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Tài khoản</p>
+                  <p className="max-w-52 truncate text-sm font-medium text-white">{profileName}</p>
                 </div>
                 <ChevronDown className="h-4 w-4 text-slate-400" />
               </button>
@@ -112,18 +179,15 @@ export default function Header() {
                         <UserCircle2 className="h-6 w-6" />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-white">{email || 'Người dùng không gian vẽ'}</p>
-                        <p className="text-xs text-slate-400">React Flow + trợ lý AI</p>
+                        <p className="text-sm font-semibold text-white">{profileName}</p>
+                        <p className="text-xs text-slate-400">{email || 'Không có email'}</p>
                       </div>
                     </div>
 
                     <div className="space-y-2">
                       <button
                         type="button"
-                        onClick={() => {
-                          setIsProfileOpen(false);
-                          navigate('/diagrams');
-                        }}
+                        onClick={() => navigateAndClose('/diagrams')}
                         className="flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-sm text-slate-200 transition-colors hover:bg-white/10"
                       >
                         <PanelLeftOpen className="h-4 w-4 text-cyan-300" />
@@ -131,14 +195,11 @@ export default function Header() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          setIsProfileOpen(false);
-                          navigate('/settings');
-                        }}
+                        onClick={() => navigateAndClose('/settings')}
                         className="flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-sm text-slate-200 transition-colors hover:bg-white/10"
                       >
                         <Settings className="h-4 w-4 text-cyan-300" />
-                        Cài đặt
+                        Cài đặt tài khoản
                       </button>
                       <button
                         type="button"
@@ -173,6 +234,16 @@ export default function Header() {
           )}
         </div>
       </div>
+
+      {isLoggedIn && isMobileMenuOpen && (
+        <div className="border-t border-white/10 bg-slate-950/95 px-4 py-4 backdrop-blur-xl lg:hidden">
+          <div className="space-y-2">
+            <NavPill active={isWorkspaceActive} label="Không gian vẽ" onClick={() => navigateAndClose('/workspace')} fullWidth />
+            <NavPill active={isDiagramsActive} label="Sơ đồ của tôi" onClick={() => navigateAndClose('/diagrams')} fullWidth />
+            <NavPill active={isSettingsActive} label="Cài đặt tài khoản" onClick={() => navigateAndClose('/settings')} fullWidth />
+          </div>
+        </div>
+      )}
     </header>
   );
 }

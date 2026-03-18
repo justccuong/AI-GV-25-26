@@ -1,6 +1,6 @@
 ﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { applyEdgeChanges, applyNodeChanges } from 'reactflow';
-import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { AlertCircle, Bot, CheckCircle2, Loader2, PanelLeftOpen } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import {
@@ -12,7 +12,7 @@ import {
   getMindMaps,
   renameMindMap,
   updateMindMap,
-  uploadImage,
+  uploadImages,
 } from '../api/axiosClient';
 import AIAssistantSidebar from '../components/AIAssistantSidebar';
 import DiagramSidebar from '../components/DiagramSidebar';
@@ -21,6 +21,7 @@ import UploadPanel from '../components/UploadPanel';
 import {
   applyThemeToDiagram,
   autoLayoutDiagram,
+  buildDiagramThumbnail,
   mergeAssistantDiagram,
   normalizeSavedDiagram,
   processMindMapData,
@@ -384,14 +385,21 @@ export default function MindMapEditor() {
         return null;
       }
 
-      const snapshot = {
+      const baseSnapshot = {
         nodes: nodesRef.current,
         edges: edgesRef.current,
         themeId: themeRef.current,
       };
+      const snapshot = {
+        ...baseSnapshot,
+        thumbnail: buildDiagramThumbnail({
+          nodes: nodesRef.current,
+          edges: edgesRef.current,
+        }),
+      };
       const resolvedTitle = diagramTitle.trim() || DEFAULT_DIAGRAM_TITLE;
 
-      if (!hasPersistableContent(snapshot, resolvedTitle)) {
+      if (!hasPersistableContent(baseSnapshot, resolvedTitle)) {
         if (mode === 'manual') {
           setSaveState({ status: 'idle', message: 'Sơ đồ đang trống, chưa có gì để lưu.' });
         }
@@ -416,7 +424,7 @@ export default function MindMapEditor() {
 
         setCurrentDiagramId(response.id);
         setDiagramTitle(response.title);
-        savedSnapshotRef.current = serializeSnapshot(snapshot);
+        savedSnapshotRef.current = serializeSnapshot(baseSnapshot);
         savedTitleRef.current = response.title;
         setSaveState({
           status: 'saved',
@@ -529,12 +537,12 @@ export default function MindMapEditor() {
   );
 
   const handleUpload = useCallback(
-    async (file) => {
+    async (files) => {
       setUploading(true);
       setSaveState({ status: 'loading', message: 'Đang phân tích ảnh ghi chú...' });
 
       try {
-        const response = await uploadImage(file);
+        const response = await uploadImages(files);
         const root = response.root || response;
         const generated = processMindMapData(root, themeRef.current);
         const nextTitle = response.title || root.label || 'Mindmap từ ghi chú';
@@ -555,9 +563,9 @@ export default function MindMapEditor() {
         setDiagramTitle(nextTitle);
         setChatMessages((currentMessages) => [
           ...currentMessages,
-          createMessage('assistant', 'Mình đã đọc ảnh ghi chú và dựng lại canvas thành một mindmap có cấu trúc rõ ràng.'),
+          createMessage('assistant', 'Mình đã đọc toàn bộ chồng ảnh ghi chú và dựng lại canvas thành một mindmap có cấu trúc rõ ràng.'),
         ]);
-        setSaveState({ status: 'idle', message: 'Canvas đã được cập nhật từ ảnh ghi chú.' });
+        setSaveState({ status: 'idle', message: 'Canvas đã được cập nhật từ tập ảnh ghi chú.' });
       } catch (error) {
         setSaveState({
           status: 'error',
@@ -667,7 +675,7 @@ export default function MindMapEditor() {
 
   return (
     <div
-      className="flex h-full overflow-hidden"
+      className="relative flex h-full overflow-hidden"
       style={{
         background: shellTheme.workspaceBg,
       }}
@@ -791,6 +799,26 @@ export default function MindMapEditor() {
         onToggle={() => setAssistantOpen((current) => !current)}
         onSendPrompt={handleAssistantPrompt}
       />
+
+      <div className="pointer-events-none fixed bottom-4 left-4 right-4 z-30 flex items-center justify-between lg:hidden">
+        <button
+          type="button"
+          onClick={() => setLeftSidebarOpen(true)}
+          className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/85 px-4 py-3 text-sm font-medium text-white shadow-xl backdrop-blur-xl"
+        >
+          <PanelLeftOpen className="h-4 w-4 text-cyan-300" />
+          Sơ đồ
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setAssistantOpen(true)}
+          className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/85 px-4 py-3 text-sm font-medium text-white shadow-xl backdrop-blur-xl"
+        >
+          <Bot className="h-4 w-4 text-cyan-300" />
+          AI
+        </button>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Handle, NodeResizer, Position } from 'reactflow';
-import { Bold, Italic, Link2, Plus, Trash2 } from 'lucide-react';
+import { Bold, Italic, Link2 } from 'lucide-react';
 import '../App.css';
 
 const FONT_SIZE_OPTIONS = [12, 14, 16, 18, 22, 28];
@@ -29,31 +29,23 @@ function stripHtml(value) {
 }
 
 export default function EditableNode({ data, selected, id }) {
-  const [draftLabel, setDraftLabel] = useState(data.label || '');
-  const [fontSizePx, setFontSizePx] = useState(
-    typeof data.fontSize === 'number' ? data.fontSize : Number(data.fontSize) || 14
-  );
-  const [draftImageUrl, setDraftImageUrl] = useState(data.imageUrl || '');
-  const [isEditing, setIsEditing] = useState(false);
+  const [fontSizeDraft, setFontSizeDraft] = useState(null);
+  const [draftImageUrl, setDraftImageUrl] = useState(null);
   const contentRef = useRef(null);
+  const isEditing = Boolean(data.isEditingActive && !data.disableEditing);
+  const displayLabel = data.label || '';
+  const fontSizePx =
+    typeof fontSizeDraft === 'number'
+      ? fontSizeDraft
+      : typeof data.fontSize === 'number'
+        ? data.fontSize
+        : Number(data.fontSize) || 14;
+  const resolvedImageUrl =
+    draftImageUrl !== null ? draftImageUrl : typeof data.imageUrl === 'string' ? data.imageUrl : '';
 
   useEffect(() => {
-    if (!isEditing) {
-      setDraftLabel(data.label || '');
-    }
-  }, [data.label, isEditing]);
-
-  useEffect(() => {
-    setDraftImageUrl(data.imageUrl || '');
-  }, [data.imageUrl]);
-
-  useEffect(() => {
-    setFontSizePx(typeof data.fontSize === 'number' ? data.fontSize : Number(data.fontSize) || 14);
-  }, [data.fontSize]);
-
-  useEffect(() => {
-    if (selected && isEditing && contentRef.current) {
-      contentRef.current.innerHTML = toHtml(draftLabel);
+    if (isEditing && contentRef.current) {
+      contentRef.current.innerHTML = toHtml(displayLabel);
       contentRef.current.focus();
       const selection = window.getSelection();
       const range = document.createRange();
@@ -62,53 +54,36 @@ export default function EditableNode({ data, selected, id }) {
       selection?.removeAllRanges();
       selection?.addRange(range);
     }
-  }, [draftLabel, isEditing, selected]);
+  }, [displayLabel, isEditing]);
 
   const commitChanges = useCallback(
     (extra = {}) => {
+      const nextLabel =
+        typeof extra.label === 'string'
+          ? extra.label
+          : contentRef.current?.innerHTML || displayLabel;
+
       data.onDataChange?.(id, {
-        label: draftLabel,
-        fontSize: fontSizePx,
-        imageUrl: draftImageUrl,
+        label: nextLabel,
+        fontSize: typeof extra.fontSize === 'number' ? extra.fontSize : fontSizePx,
+        imageUrl: typeof extra.imageUrl === 'string' ? extra.imageUrl : resolvedImageUrl,
         ...extra,
       });
     },
-    [data, draftImageUrl, draftLabel, fontSizePx, id]
-  );
-
-  const handleInput = useCallback(() => {
-    if (!contentRef.current) {
-      return;
-    }
-
-    setDraftLabel(contentRef.current.innerHTML);
-  }, []);
-
-  const handleTextClick = useCallback(
-    (event) => {
-      if (!selected || data.disableEditing) {
-        return;
-      }
-
-      event.stopPropagation();
-      setIsEditing(true);
-    },
-    [data.disableEditing, selected]
+    [data, displayLabel, fontSizePx, id, resolvedImageUrl]
   );
 
   const handleBlur = useCallback(() => {
-    setIsEditing(false);
     commitChanges();
-  }, [commitChanges]);
+    setDraftImageUrl(null);
+    setFontSizeDraft(null);
+    data.onFinishEditing?.(id);
+  }, [commitChanges, data, id]);
 
-  const execCommand = useCallback(
-    (command) => {
-      document.execCommand(command, false, null);
-      handleInput();
-      contentRef.current?.focus();
-    },
-    [handleInput]
-  );
+  const execCommand = useCallback((command) => {
+    document.execCommand(command, false, null);
+    contentRef.current?.focus();
+  }, []);
 
   const wrapperStyle = useMemo(() => {
     const nodeStyle = data.style || {};
@@ -155,7 +130,14 @@ export default function EditableNode({ data, selected, id }) {
   return (
     <div style={wrapperStyle}>
       {selected && (
-        <NodeResizer color="#22d3ee" isVisible minWidth={140} minHeight={70} />
+        <NodeResizer
+          color="#22d3ee"
+          isVisible
+          minWidth={140}
+          minHeight={70}
+          handleClassName="mindmap-resize-handle"
+          lineClassName="mindmap-resize-line"
+        />
       )}
 
       <Handle type="target" position={Position.Top} />
@@ -163,7 +145,7 @@ export default function EditableNode({ data, selected, id }) {
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />
 
-      {selected && !data.disableEditing && (
+      {isEditing && (
         <div
           className="rich-text-toolbar nodrag"
           style={{
@@ -184,9 +166,7 @@ export default function EditableNode({ data, selected, id }) {
           <select
             value={fontSizePx}
             onChange={(event) => {
-              const nextSize = Number(event.target.value);
-              setFontSizePx(nextSize);
-              data.onDataChange?.(id, { fontSize: nextSize });
+              setFontSizeDraft(Number(event.target.value));
             }}
             aria-label="Cỡ chữ"
           >
@@ -196,20 +176,11 @@ export default function EditableNode({ data, selected, id }) {
               </option>
             ))}
           </select>
-          <button type="button" onClick={() => data.onAddChild?.()} title="Thêm nút con">
-            <Plus className="h-4 w-4" />
-          </button>
-          <button type="button" onClick={() => data.onDelete?.()} title="Xóa nút">
-            <Trash2 className="h-4 w-4" />
-          </button>
         </div>
       )}
 
       <div style={surfaceStyle}>
-        <div
-          className="flex h-full w-full flex-col items-center justify-center gap-3 px-4 py-4"
-          onClick={handleTextClick}
-        >
+        <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-4 py-4">
           {showTypeBadge && (
             <span className="rounded-full border border-black/5 bg-white/35 px-2.5 py-0.5 text-[9px] uppercase tracking-[0.18em] text-current/45 backdrop-blur-sm">
               {NODE_TYPE_LABELS[nodeType] || NODE_TYPE_LABELS.standard}
@@ -218,10 +189,10 @@ export default function EditableNode({ data, selected, id }) {
 
           {nodeType === 'image' && (
             <div className="flex w-full flex-1 flex-col items-center justify-center gap-3">
-              {draftImageUrl ? (
+              {resolvedImageUrl ? (
                 <img
-                  src={draftImageUrl}
-                  alt={stripHtml(data.label || 'Nút hình ảnh') || 'Nút hình ảnh'}
+                  src={resolvedImageUrl}
+                  alt={stripHtml(displayLabel || 'Nút hình ảnh') || 'Nút hình ảnh'}
                   className="h-28 w-full rounded-2xl object-cover shadow-lg"
                 />
               ) : (
@@ -230,13 +201,17 @@ export default function EditableNode({ data, selected, id }) {
                 </div>
               )}
 
-              {selected && !data.disableEditing && (
+              {isEditing && (
                 <label className="flex w-full items-center gap-2 rounded-2xl border border-slate-300 bg-white/80 px-3 py-2 text-xs text-slate-700 nodrag">
                   <Link2 className="h-3.5 w-3.5" />
                   <input
-                    value={draftImageUrl}
+                    value={resolvedImageUrl}
                     onChange={(event) => setDraftImageUrl(event.target.value)}
-                    onBlur={() => commitChanges()}
+                    onBlur={(event) =>
+                      commitChanges({
+                        imageUrl: event.target.value,
+                      })
+                    }
                     placeholder="Dán URL hình ảnh"
                     className="w-full bg-transparent outline-none placeholder:text-slate-400"
                   />
@@ -245,7 +220,7 @@ export default function EditableNode({ data, selected, id }) {
             </div>
           )}
 
-          {selected && isEditing && !data.disableEditing ? (
+          {isEditing ? (
             <div
               ref={contentRef}
               contentEditable
@@ -257,7 +232,8 @@ export default function EditableNode({ data, selected, id }) {
                 minHeight: '1.5em',
                 width: '100%',
               }}
-              onInput={handleInput}
+              onMouseDown={(event) => event.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
               onBlur={handleBlur}
             />
           ) : (
@@ -268,7 +244,7 @@ export default function EditableNode({ data, selected, id }) {
                 color: 'inherit',
               }}
               dangerouslySetInnerHTML={{
-                __html: toHtml(draftLabel),
+                __html: toHtml(displayLabel),
               }}
             />
           )}
@@ -277,4 +253,3 @@ export default function EditableNode({ data, selected, id }) {
     </div>
   );
 }
-
