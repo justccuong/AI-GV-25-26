@@ -33,11 +33,18 @@ VALID_EDGE_TYPES = {'floating', 'bezier', 'straight', 'step'}
 load_dotenv()
 models.Base.metadata.create_all(bind=engine)
 
+origins = [
+    "http://localhost:5173", 
+    "http://localhost:3000",  
+    "https://ten-frontend-cua-cau.vercel.app",
+]
+
 app = FastAPI(title='EduMind AI Backend')
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['*'],
-    allow_credentials=False,
+    allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=['*'],
     allow_headers=['*'],
 )
