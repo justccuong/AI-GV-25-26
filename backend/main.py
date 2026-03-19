@@ -54,6 +54,7 @@ gemini_model = None
 if genai is not None and api_key:
     genai.configure(api_key=api_key)
     gemini_model = genai.GenerativeModel('gemini-2.5-flash')
+AI_FALLBACK_ENABLED = os.getenv('AI_FALLBACK_ENABLED', '').strip().lower() in {'1', 'true', 'yes', 'on'}
 
 
 def parse_json_payload(text: str) -> Dict[str, Any]:
@@ -681,6 +682,8 @@ def derive_profile_name(email: str) -> str:
 
 def generate_mindmap_with_ai(prompt: str, current_diagram: Dict[str, Any] | None = None) -> Dict[str, Any]:
     if gemini_model is None:
+        if not AI_FALLBACK_ENABLED:
+            raise RuntimeError('Trợ lý AI chưa được cấu hình trên server. Hãy thiết lập GEMINI_API_KEY trên Render.')
         return fallback_assistant_payload(prompt, current_diagram)
 
     summarized_context = summarize_current_diagram(current_diagram)
@@ -751,13 +754,25 @@ User request:
         )
         payload = parse_json_payload(response.text)
         return sanitize_assistant_payload(payload, prompt, current_diagram)
-    except Exception:
+    except Exception as exc:
+        if not AI_FALLBACK_ENABLED:
+            raise RuntimeError(f'Không thể gọi Gemini trên server: {exc}') from exc
         return fallback_assistant_payload(prompt, current_diagram)
 
 
 @app.get('/')
 def read_root():
     return {'message': 'EduMind AI Backend đang hoạt động.'}
+
+
+@app.get('/health')
+def read_health():
+    return {
+        'status': 'ok',
+        'ai_enabled': gemini_model is not None,
+        'ai_fallback_enabled': AI_FALLBACK_ENABLED,
+        'database_url_configured': bool(os.getenv('DATABASE_URL')),
+    }
 
 
 @app.post('/analyze-note')
@@ -778,6 +793,11 @@ async def analyze_note(files: list[UploadFile] = File(...)):
             combined_label = f'{combined_label} và {len(filenames) - 3} trang khác'
 
         if gemini_model is None:
+            if not AI_FALLBACK_ENABLED:
+                raise HTTPException(
+                    status_code=503,
+                    detail='Tính năng AI OCR chưa được cấu hình trên server. Hãy thiết lập GEMINI_API_KEY trên Render.',
+                )
             root = fallback_mindmap(f'Ghi chú nhiều trang: {combined_label}')
             return {'title': root['label'], 'root': root}
 
@@ -804,7 +824,13 @@ Rules:
         )
         root = normalize_generated_tree(parse_json_payload(response.text), combined_label or 'Ghi chú học tập')
         return {'title': root['label'], 'root': root}
+    except HTTPException:
+        raise
     except Exception as exc:
+        if AI_FALLBACK_ENABLED:
+            combined_label = combined_label if 'combined_label' in locals() else 'Ghi chú học tập'
+            root = fallback_mindmap(f'Ghi chú nhiều trang: {combined_label}')
+            return {'title': root['label'], 'root': root}
         raise HTTPException(status_code=500, detail=f'Phân tích ảnh thất bại: {exc}') from exc
 
 
@@ -968,6 +994,7 @@ def assistant_mindmap(
             'message': diagram.get('message') or 'Đã tạo cập nhật cho sơ đồ hiện tại.',
             'diagram': diagram,
         }
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f'Không thể tạo cập nhật AI: {exc}') from exc
-
