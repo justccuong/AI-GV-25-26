@@ -112,9 +112,9 @@ export default function Settings() {
   };
 
   return (
-    <div className="h-full overflow-y-auto bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.1),_transparent_38%),linear-gradient(180deg,_#020617,_#0f172a_50%,_#020617)] px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
+    <div className="shell-page-pad h-full overflow-y-auto bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.1),_transparent_38%),linear-gradient(180deg,_#020617,_#0f172a_50%,_#020617)] px-4 text-slate-100 sm:px-5 lg:px-6">
       <div className="mx-auto max-w-5xl">
-        <div className="mb-8 rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur-xl">
+        <div className="shell-page-hero mb-6 border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur-xl">
           <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-1 text-xs uppercase tracking-[0.24em] text-cyan-200">
             <Settings2 className="h-3.5 w-3.5" />
             Cài đặt tài khoản
@@ -145,7 +145,7 @@ export default function Settings() {
             Đang tải hồ sơ tài khoản...
           </div>
         ) : (
-          <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
+          <div className="page-profile-grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
             <aside className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-xl backdrop-blur-xl">
               <div className="flex flex-col items-center text-center">
                 <div className="flex h-24 w-24 items-center justify-center rounded-[2rem] bg-gradient-to-br from-cyan-400 to-blue-500 text-2xl font-semibold text-slate-950 shadow-[0_18px_45px_rgba(14,165,233,0.24)]">

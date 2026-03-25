@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  --ui-scale: 1;
   color-scheme: dark;
   font-family: "Space Grotesk", "Manrope", "Segoe UI", sans-serif;
   background:
@@ -8,8 +9,18 @@
     linear-gradient(180deg, #020617 0%, #0f172a 48%, #020617 100%);
 }
 
+@media (min-width: 960px) and (max-width: 1440px) and (max-height: 1100px) {
+  :root {
+    --ui-scale: 0.84;
+  }
+}
+
 * {
   box-sizing: border-box;
+}
+
+html {
+  font-size: calc(16px * var(--ui-scale));
 }
 
 html,
@@ -28,6 +39,7 @@ body {
     radial-gradient(circle at top, rgba(34, 211, 238, 0.18), transparent 30%),
     linear-gradient(180deg, #020617 0%, #0f172a 48%, #020617 100%);
   color: #e2e8f0;
+  font-size: 1rem;
 }
 
 button,

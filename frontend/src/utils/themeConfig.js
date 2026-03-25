@@ -10,6 +10,7 @@ export const themes = {
   [THEME_IDS.DEFAULT]: {
     id: THEME_IDS.DEFAULT,
     name: 'Cầu vồng',
+    description: 'Sáng, nhẹ và phù hợp học tập hằng ngày',
     background: 'radial-gradient(circle at top, rgba(243,244,255,0.99), rgba(230,236,255,0.97) 38%, rgba(239,242,255,0.99) 100%)',
     backgroundPattern: '#d4dbf4',
     shell: {
@@ -43,6 +44,7 @@ export const themes = {
   [THEME_IDS.FUTURE_TECH]: {
     id: THEME_IDS.FUTURE_TECH,
     name: 'Công nghệ tương lai',
+    description: 'Tối, sắc nét và hợp nội dung kỹ thuật',
     background: '#0f172a',
     backgroundPattern: '#1e293b',
     shell: {
@@ -76,6 +78,7 @@ export const themes = {
   [THEME_IDS.PINK_CYBERPUNK]: {
     id: THEME_IDS.PINK_CYBERPUNK,
     name: 'Hồng cyberpunk',
+    description: 'Nổi bật, cá tính và thiên về trình bày',
     background: 'radial-gradient(circle at top left, rgba(236,72,153,0.2), transparent 30%), radial-gradient(circle at top right, rgba(168,85,247,0.18), transparent 36%), linear-gradient(160deg, #180916 0%, #27122b 48%, #1d1235 100%)',
     backgroundPattern: '#4b244f',
     shell: {

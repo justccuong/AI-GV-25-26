@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Handle, NodeResizer, Position } from 'reactflow';
 import { Bold, Italic, Link2 } from 'lucide-react';
-import '../App.css';
 
 const FONT_SIZE_OPTIONS = [12, 14, 16, 18, 22, 28];
 
@@ -32,6 +31,7 @@ export default function EditableNode({ data, selected, id }) {
   const [fontSizeDraft, setFontSizeDraft] = useState(null);
   const [draftImageUrl, setDraftImageUrl] = useState(null);
   const contentRef = useRef(null);
+  const nodeRef = useRef(null);
   const isEditing = Boolean(data.isEditingActive && !data.disableEditing);
   const displayLabel = data.label || '';
   const fontSizePx =
@@ -79,6 +79,44 @@ export default function EditableNode({ data, selected, id }) {
     setFontSizeDraft(null);
     data.onFinishEditing?.(id);
   }, [commitChanges, data, id]);
+
+  const shouldKeepEditing = useCallback((nextTarget) => {
+    if (!nextTarget || typeof nextTarget !== 'object' || !('nodeType' in nextTarget)) {
+      return false;
+    }
+
+    return Boolean(nodeRef.current?.contains(nextTarget));
+  }, []);
+
+  const handleContentBlur = useCallback(
+    (event) => {
+      commitChanges();
+
+      if (shouldKeepEditing(event.relatedTarget)) {
+        return;
+      }
+
+      setDraftImageUrl(null);
+      setFontSizeDraft(null);
+      data.onFinishEditing?.(id);
+    },
+    [commitChanges, data, id, shouldKeepEditing]
+  );
+
+  const handleImageUrlBlur = useCallback(
+    (event) => {
+      commitChanges({
+        imageUrl: event.target.value,
+      });
+
+      if (shouldKeepEditing(event.relatedTarget)) {
+        return;
+      }
+
+      handleBlur();
+    },
+    [commitChanges, handleBlur, shouldKeepEditing]
+  );
 
   const execCommand = useCallback((command) => {
     document.execCommand(command, false, null);
@@ -128,7 +166,7 @@ export default function EditableNode({ data, selected, id }) {
   const showTypeBadge = !data.isRoot && nodeType !== 'standard';
 
   return (
-    <div style={wrapperStyle}>
+    <div ref={nodeRef} style={wrapperStyle}>
       {selected && (
         <NodeResizer
           color="#22d3ee"
@@ -207,11 +245,7 @@ export default function EditableNode({ data, selected, id }) {
                   <input
                     value={resolvedImageUrl}
                     onChange={(event) => setDraftImageUrl(event.target.value)}
-                    onBlur={(event) =>
-                      commitChanges({
-                        imageUrl: event.target.value,
-                      })
-                    }
+                    onBlur={handleImageUrlBlur}
                     placeholder="Dán URL hình ảnh"
                     className="w-full bg-transparent outline-none placeholder:text-slate-400"
                   />
@@ -234,7 +268,7 @@ export default function EditableNode({ data, selected, id }) {
               }}
               onMouseDown={(event) => event.stopPropagation()}
               onClick={(event) => event.stopPropagation()}
-              onBlur={handleBlur}
+              onBlur={handleContentBlur}
             />
           ) : (
             <div

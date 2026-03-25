@@ -89,3 +89,212 @@
 .mindmap-resize-line {
   border-color: rgba(34, 211, 238, 0.55) !important;
 }
+
+.app-shell {
+  display: flex;
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 100%;
+  min-width: 0;
+  overflow: hidden;
+  container-type: inline-size;
+  container-name: app-shell;
+}
+
+.app-shell__main {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+  padding-left: var(--app-sidebar-offset, 0);
+}
+
+.app-shell__page {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  container-type: inline-size;
+  container-name: page-shell;
+}
+
+.app-shell__page > * {
+  min-height: 0;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.app-shell__mobile-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(2, 6, 23, 0.88);
+  padding: 0.875rem 1rem;
+  backdrop-filter: blur(22px);
+}
+
+.app-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 45;
+}
+
+.app-sidebar-mobile {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 50;
+  width: min(86vw, 18rem);
+}
+
+.app-offset-left {
+  left: 0;
+}
+
+.shell-page-pad {
+  padding-block: 1.1rem;
+}
+
+.shell-page-hero {
+  border-radius: 1.75rem;
+}
+
+.page-profile-grid {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.page-hero-header {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.workspace-shell {
+  min-height: 0;
+  flex: 1 1 auto;
+  container-type: inline-size;
+  container-name: workspace;
+}
+
+.workspace-header-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.875rem;
+}
+
+.workspace-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.workspace-canvas-shell {
+  height: 100%;
+  min-height: 100%;
+  container-type: inline-size;
+  container-name: canvas;
+}
+
+.workspace-tool-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.workspace-tool-rail-scroll {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 0.35rem;
+  padding-bottom: 0.35rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+}
+
+.workspace-tool-rail-scroll::-webkit-scrollbar {
+  width: 0.4rem;
+}
+
+.workspace-tool-rail-scroll::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: rgba(148, 163, 184, 0.45);
+}
+
+.workspace-tool-rail-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.workspace-tool-group {
+  border-radius: 1.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0.55rem;
+  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.18);
+  backdrop-filter: blur(20px);
+}
+
+.workspace-node-menu {
+  width: 18rem;
+}
+
+.workspace-empty-state {
+  max-width: 36rem;
+}
+
+@media (max-width: 1023.98px) {
+  .app-shell__main {
+    padding-left: 0;
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-offset-left {
+    left: var(--app-sidebar-offset, 0);
+  }
+}
+
+@container page-shell (max-width: 76rem) {
+  .shell-page-pad {
+    padding-block: 0.95rem;
+  }
+
+  .shell-page-hero {
+    border-radius: 1.5rem;
+  }
+
+  .page-profile-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@container workspace (max-width: 80rem) {
+  .workspace-header-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-header-actions {
+    justify-content: flex-start;
+  }
+}
+
+@container canvas (max-width: 70rem) {
+  .workspace-minimap {
+    display: none !important;
+  }
+
+  .workspace-empty-state {
+    max-width: 30rem;
+  }
+
+  .workspace-node-menu {
+    width: min(16rem, calc(100cqi - 1.5rem));
+  }
+}

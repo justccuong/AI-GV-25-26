@@ -4,11 +4,11 @@ import 'reactflow/dist/style.css';
 import {
   Check,
   ChevronDown,
-  ChevronUp,
   Diamond,
   ImagePlus,
   LayoutGrid,
   Link2,
+  Loader2,
   Maximize2,
   Palette,
   PenSquare,
@@ -22,7 +22,6 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
-
 import EditableNode from './EditableNode';
 import EdgeSettingsPanel from './EdgeSettingsPanel';
 import FloatingEdge from './FloatingEdge';
@@ -54,6 +53,9 @@ function ToolbarButton({
   label,
   active = false,
   disabled = false,
+  compact = false,
+  showLabel = true,
+  spinning = false,
   onClick,
   buttonStyle,
   activeStyle,
@@ -66,19 +68,166 @@ function ToolbarButton({
       onClick={onClick}
       disabled={disabled}
       className={[
-        'inline-flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium transition-all',
+        'inline-flex items-center gap-2 border text-sm font-medium transition-all',
+        compact ? 'h-10 w-10 justify-center rounded-[1rem] px-0 py-0' : 'w-full justify-start rounded-2xl px-3 py-2.5',
         disabled ? 'cursor-not-allowed opacity-40' : '',
       ].join(' ')}
-      style={active ? activeStyle : buttonStyle}
+      style={active ? { ...buttonStyle, ...activeStyle } : buttonStyle}
       title={label}
+      aria-label={label}
     >
-      <IconComponent className="h-4 w-4" />
-      <span className="hidden xl:inline">{label}</span>
+      <IconComponent className={['h-4 w-4', spinning ? 'animate-spin' : ''].join(' ')} />
+      {showLabel && <span>{label}</span>}
     </button>
   );
 }
 
-function FlowToolbar({
+function ThemePreviewCanvas({ theme, compact = false }) {
+  const shellTheme = theme.shell || {};
+  const edgeColor = theme.edge?.stroke || shellTheme.accent;
+
+  if (compact) {
+    return (
+      <div
+        className="h-full w-full overflow-hidden rounded-[0.8rem] border p-1"
+        style={{
+          borderColor: shellTheme.panelBorder,
+          background: theme.background,
+        }}
+      >
+        <div className="flex h-full flex-col gap-1">
+          <div
+            className="h-2 rounded-full border"
+            style={{
+              borderColor: shellTheme.panelBorder,
+              background: shellTheme.accentSoft,
+            }}
+          />
+
+          <div className="grid min-h-0 flex-1 grid-cols-[1.3fr_0.9fr] gap-1">
+            <div
+              className="rounded-[0.55rem]"
+              style={{
+                background: theme.node.rootBg,
+                border: theme.node.rootBorder,
+                boxShadow: theme.node.boxShadow,
+              }}
+            />
+
+            <div
+              className="rounded-[0.55rem] border"
+              style={{
+                background: theme.node.childBg,
+                borderColor: edgeColor,
+              }}
+            />
+          </div>
+
+          <div
+            className="h-1 rounded-full opacity-80"
+            style={{ background: edgeColor }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="rounded-[1rem] border p-2"
+      style={{
+        borderColor: shellTheme.panelBorder,
+        background: theme.background,
+      }}
+    >
+      <div
+        className="mb-2 rounded-[0.8rem] px-2 py-1.5"
+        style={{
+          background: theme.node.rootBg,
+          border: theme.node.rootBorder,
+        }}
+      >
+        <div
+          className="h-1.5 w-8 rounded-full opacity-80"
+          style={{ background: theme.node.rootTextColor }}
+        />
+      </div>
+
+      <div className="flex items-center gap-1.5">
+        <div
+          className="h-3 w-3 rounded-full border"
+          style={{
+            background: theme.node.childBg,
+            borderColor: edgeColor,
+          }}
+        />
+        <div className="h-[2px] flex-1 rounded-full" style={{ background: edgeColor }} />
+        <div className="h-2.5 w-2.5 rounded-full" style={{ background: shellTheme.accent }} />
+      </div>
+    </div>
+  );
+}
+
+function ThemeSwatch({ themeKey, active, onClick, detailed = false }) {
+  const theme = themes[themeKey];
+  const shellTheme = theme.shell || {};
+
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(themeKey)}
+      title={theme.name}
+      aria-label={theme.name}
+      className={[
+        detailed
+          ? 'w-full rounded-[1.1rem] border p-2 text-left transition-all hover:translate-y-[-1px]'
+          : 'group relative h-11 w-11 rounded-[1rem] border p-1.5 transition-all hover:scale-[1.04]',
+        active ? 'shadow-[0_0_0_1px_rgba(255,255,255,0.16)]' : '',
+      ].join(' ')}
+      style={{
+        borderColor: active ? shellTheme.accent : shellTheme.panelBorder,
+        background: shellTheme.panelBg,
+      }}
+    >
+      {detailed ? (
+        <div>
+          <ThemePreviewCanvas theme={theme} />
+          <div className="mt-2">
+            <p className="text-sm font-semibold" style={{ color: shellTheme.panelText }}>
+              {theme.name}
+            </p>
+            <p className="mt-1 text-[11px] leading-4" style={{ color: shellTheme.panelMuted }}>
+              {theme.description}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <>
+          <ThemePreviewCanvas theme={theme} compact />
+
+          <div className="pointer-events-none absolute left-[calc(100%+0.65rem)] top-1/2 z-30 w-56 -translate-y-1/2 rounded-[1.1rem] border p-2 opacity-0 shadow-2xl backdrop-blur-xl transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
+            style={{
+              borderColor: shellTheme.panelBorder,
+              background: shellTheme.panelStrongBg,
+            }}
+          >
+            <ThemePreviewCanvas theme={theme} />
+            <div className="mt-2 text-left">
+              <p className="text-sm font-semibold" style={{ color: shellTheme.panelText }}>
+                {theme.name}
+              </p>
+              <p className="mt-1 text-[11px] leading-4" style={{ color: shellTheme.panelMuted }}>
+                {theme.description}
+              </p>
+            </div>
+          </div>
+        </>
+      )}
+    </button>
+  );
+}
+
+function DesktopToolRail({
   containerRef,
   toolMode,
   setToolMode,
@@ -96,14 +245,15 @@ function FlowToolbar({
 }) {
   const { fitView, screenToFlowPosition, zoomIn, zoomOut } = useReactFlow();
   const shellTheme = getTheme(themeId).shell || {};
-  const isLightToolbar = themeId === THEME_IDS.DEFAULT;
   const buttonStyle = {
-    background: shellTheme.accentSoft || 'rgba(255,255,255,0.06)',
+    borderColor: shellTheme.panelBorder,
+    background: shellTheme.panelBg || 'rgba(255,255,255,0.06)',
     color: shellTheme.panelText || '#e2e8f0',
   };
   const activeStyle = {
-    background: shellTheme.accent || '#22d3ee',
-    color: isLightToolbar ? '#ffffff' : '#082f49',
+    borderColor: shellTheme.accent || '#22d3ee',
+    background: shellTheme.accentSoft || 'rgba(34,211,238,0.16)',
+    color: shellTheme.panelText || '#e2e8f0',
     boxShadow: `0 14px 28px ${shellTheme.accentSoft || 'rgba(34,211,238,0.22)'}`,
   };
 
@@ -118,87 +268,70 @@ function FlowToolbar({
   };
 
   return (
-    <Panel position="top-center" className="pointer-events-none mt-4 hidden w-[min(100%-2rem,1180px)] lg:block">
-      <div
-        className="pointer-events-auto rounded-[2rem] border px-3 py-3 shadow-2xl backdrop-blur-2xl"
-        style={{
-          borderColor: shellTheme.panelBorder,
-          background: shellTheme.panelStrongBg,
-        }}
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <ToolbarButton icon={Square} label="Nút chuẩn" onClick={() => addNodeAtCenter(NODE_TYPES.STANDARD)} buttonStyle={buttonStyle} activeStyle={activeStyle} />
-            <ToolbarButton icon={Type} label="Văn bản" onClick={() => addNodeAtCenter(NODE_TYPES.TEXT)} buttonStyle={buttonStyle} activeStyle={activeStyle} />
-            <ToolbarButton icon={ImagePlus} label="Hình ảnh" onClick={() => addNodeAtCenter(NODE_TYPES.IMAGE)} buttonStyle={buttonStyle} activeStyle={activeStyle} />
-            <ToolbarButton icon={Diamond} label="Quyết định" onClick={() => addNodeAtCenter(NODE_TYPES.DECISION)} buttonStyle={buttonStyle} activeStyle={activeStyle} />
-            <ToolbarButton
-              icon={Link2}
-              label="Nối cạnh"
-              active={toolMode === 'connect'}
-              onClick={() => setToolMode((current) => (current === 'connect' ? 'select' : 'connect'))}
-              buttonStyle={buttonStyle}
-              activeStyle={activeStyle}
-            />
-            <ToolbarButton
-              icon={LayoutGrid}
-              label="Bố cục tia"
-              onClick={() => {
-                onAutoLayout();
-                requestAnimationFrame(() => fitView({ padding: 0.2, duration: 350 }));
-              }}
-              buttonStyle={buttonStyle}
-              activeStyle={activeStyle}
-            />
+    <Panel
+      position="top-left"
+      className="pointer-events-none ml-3 mt-3 hidden lg:block"
+      style={{ height: 'calc(100% - 1.5rem)' }}
+    >
+      <div className="workspace-tool-rail-scroll pointer-events-auto">
+        <div className="workspace-tool-rail">
+        <div className="workspace-tool-group pointer-events-auto" style={{ borderColor: shellTheme.panelBorder, background: shellTheme.panelStrongBg }}>
+          <div className="flex flex-col gap-2">
+            <ToolbarButton compact showLabel={false} icon={Square} label="Nút chuẩn" onClick={() => addNodeAtCenter(NODE_TYPES.STANDARD)} buttonStyle={buttonStyle} activeStyle={activeStyle} />
+            <ToolbarButton compact showLabel={false} icon={Type} label="Văn bản" onClick={() => addNodeAtCenter(NODE_TYPES.TEXT)} buttonStyle={buttonStyle} activeStyle={activeStyle} />
+            <ToolbarButton compact showLabel={false} icon={ImagePlus} label="Hình ảnh" onClick={() => addNodeAtCenter(NODE_TYPES.IMAGE)} buttonStyle={buttonStyle} activeStyle={activeStyle} />
+            <ToolbarButton compact showLabel={false} icon={Diamond} label="Quyết định" onClick={() => addNodeAtCenter(NODE_TYPES.DECISION)} buttonStyle={buttonStyle} activeStyle={activeStyle} />
+            <ToolbarButton compact showLabel={false} icon={Link2} label="Nối cạnh" active={toolMode === 'connect'} onClick={() => setToolMode((current) => (current === 'connect' ? 'select' : 'connect'))} buttonStyle={buttonStyle} activeStyle={activeStyle} />
+            <ToolbarButton compact showLabel={false} icon={LayoutGrid} label="Bố cục tia" onClick={() => { onAutoLayout(); requestAnimationFrame(() => fitView({ padding: 0.2, duration: 350 })); }} buttonStyle={buttonStyle} activeStyle={activeStyle} />
           </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <ToolbarButton icon={Undo2} label="Hoàn tác" onClick={onUndo} disabled={!canUndo} buttonStyle={buttonStyle} activeStyle={activeStyle} />
-            <ToolbarButton icon={Redo2} label="Làm lại" onClick={onRedo} disabled={!canRedo} buttonStyle={buttonStyle} activeStyle={activeStyle} />
-            <ToolbarButton icon={ZoomOut} label="Thu nhỏ" onClick={() => zoomOut({ duration: 250 })} buttonStyle={buttonStyle} activeStyle={activeStyle} />
-            <ToolbarButton icon={ZoomIn} label="Phóng to" onClick={() => zoomIn({ duration: 250 })} buttonStyle={buttonStyle} activeStyle={activeStyle} />
-            <ToolbarButton icon={Maximize2} label="Vừa khung" onClick={() => fitView({ padding: 0.2, duration: 350 })} buttonStyle={buttonStyle} activeStyle={activeStyle} />
-            <ToolbarButton icon={ImagePlus} label="Quét ghi chú" onClick={onOpenUploadPanel} buttonStyle={buttonStyle} activeStyle={activeStyle} />
-
-            <div
-              className="flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm"
-              style={{
-                borderColor: shellTheme.panelBorder,
-                background: shellTheme.accentSoft,
-                color: shellTheme.panelText,
-              }}
-            >
+        </div>
+        <div className="workspace-tool-group pointer-events-auto" style={{ borderColor: shellTheme.panelBorder, background: shellTheme.panelStrongBg }}>
+          <div className="flex flex-col gap-2">
+            <ToolbarButton compact showLabel={false} icon={Undo2} label="Hoàn tác" onClick={onUndo} disabled={!canUndo} buttonStyle={buttonStyle} activeStyle={activeStyle} />
+            <ToolbarButton compact showLabel={false} icon={Redo2} label="Làm lại" onClick={onRedo} disabled={!canRedo} buttonStyle={buttonStyle} activeStyle={activeStyle} />
+            <ToolbarButton compact showLabel={false} icon={Maximize2} label="Vừa khung" onClick={() => fitView({ padding: 0.2, duration: 350 })} buttonStyle={buttonStyle} activeStyle={activeStyle} />
+            <ToolbarButton compact showLabel={false} icon={ZoomOut} label="Thu nhỏ" onClick={() => zoomOut({ duration: 250 })} buttonStyle={buttonStyle} activeStyle={activeStyle} />
+            <ToolbarButton compact showLabel={false} icon={ZoomIn} label="Phóng to" onClick={() => zoomIn({ duration: 250 })} buttonStyle={buttonStyle} activeStyle={activeStyle} />
+            <ToolbarButton compact showLabel={false} icon={ImagePlus} label="Quét ghi chú" onClick={onOpenUploadPanel} buttonStyle={buttonStyle} activeStyle={activeStyle} />
+          </div>
+        </div>
+        <div className="workspace-tool-group pointer-events-auto" style={{ borderColor: shellTheme.panelBorder, background: shellTheme.panelStrongBg }}>
+          <div className="mb-2 px-1 text-center">
+            <div className="flex items-center justify-center">
               <Palette className="h-4 w-4" style={{ color: shellTheme.accent }} />
-              <select
-                value={themeId}
-                onChange={(event) => onThemeChange(event.target.value)}
-                className="bg-transparent text-sm outline-none"
-                aria-label="Chọn giao diện"
-              >
-                {Object.values(THEME_IDS).map((id) => (
-                  <option key={id} value={id} className="bg-slate-900 text-white">
-                    {themes[id].name}
-                  </option>
-                ))}
-              </select>
             </div>
-
-            <button
-              type="button"
-              onClick={onSave}
-              className="inline-flex items-center gap-2 rounded-2xl bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-cyan-400/25 transition-transform hover:scale-[1.01]"
-            >
-              <Save className="h-4 w-4" />
-              {saveState === 'saving' ? 'Đang lưu...' : 'Lưu'}
-            </button>
+            <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.22em]" style={{ color: shellTheme.panelMuted }}>
+              Chủ đề
+            </p>
+            <p className="mt-1 text-[11px] font-medium" style={{ color: shellTheme.panelText }}>
+              {getTheme(themeId).name}
+            </p>
           </div>
+          <div className="flex flex-col items-center gap-2">
+            {Object.values(THEME_IDS).map((id) => (
+              <ThemeSwatch key={id} themeKey={id} active={themeId === id} onClick={onThemeChange} />
+            ))}
+          </div>
+          <div className="mt-3 flex justify-center">
+            <ToolbarButton
+              compact
+              showLabel={false}
+              spinning={saveState === 'saving'}
+              icon={saveState === 'saving' ? Loader2 : Save}
+              label={saveState === 'saving' ? 'Đang lưu' : 'Lưu'}
+              onClick={onSave}
+              buttonStyle={{ borderColor: shellTheme.accent, background: shellTheme.accentSoft, color: shellTheme.panelText }}
+              activeStyle={activeStyle}
+            />
+          </div>
+        </div>
         </div>
       </div>
     </Panel>
   );
 }
 
-function MobileToolbarSheet({
+function MobileToolDrawer({
   containerRef,
   toolMode,
   setToolMode,
@@ -218,6 +351,8 @@ function MobileToolbarSheet({
 }) {
   const { fitView, screenToFlowPosition, zoomIn, zoomOut } = useReactFlow();
   const shellTheme = getTheme(themeId).shell || {};
+  const sharedButtonStyle = { borderColor: shellTheme.panelBorder, background: shellTheme.panelBg, color: shellTheme.panelText };
+  const sharedActiveStyle = { borderColor: shellTheme.accent, background: shellTheme.accentSoft, color: shellTheme.panelText };
 
   const addNodeAtCenter = (nodeType) => {
     const bounds = containerRef.current?.getBoundingClientRect();
@@ -232,28 +367,30 @@ function MobileToolbarSheet({
 
   if (!isOpen) {
     return (
-      <Panel position="bottom-center" className="pointer-events-none mb-4 lg:hidden">
+      <div className="pointer-events-none absolute left-3 top-3 z-20 lg:hidden">
         <button
           type="button"
           onClick={() => onToggle(true)}
-          className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/85 px-4 py-3 text-sm font-semibold text-white shadow-2xl backdrop-blur-xl"
+          className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/85 px-4 py-2.5 text-sm font-semibold text-white shadow-2xl backdrop-blur-xl"
         >
           <LayoutGrid className="h-4 w-4 text-cyan-300" />
           Công cụ
-          <ChevronUp className="h-4 w-4 text-cyan-300" />
         </button>
-      </Panel>
+      </div>
     );
   }
 
   return (
-    <Panel position="bottom-center" className="pointer-events-none mb-4 w-[min(100%-1.5rem,620px)] lg:hidden">
+    <div className="pointer-events-none absolute inset-0 z-20 lg:hidden">
+      <button
+        type="button"
+        onClick={() => onToggle(false)}
+        className="pointer-events-auto absolute inset-0 bg-slate-950/40 backdrop-blur-sm"
+        aria-label="Đóng công cụ canvas"
+      />
       <div
-        className="pointer-events-auto rounded-[2rem] border p-4 shadow-2xl backdrop-blur-2xl"
-        style={{
-          borderColor: shellTheme.panelBorder,
-          background: shellTheme.panelStrongBg,
-        }}
+        className="pointer-events-auto absolute inset-y-3 left-3 flex w-[min(18rem,calc(100%-1.5rem))] flex-col rounded-[1.75rem] border p-4 shadow-2xl backdrop-blur-2xl"
+        style={{ borderColor: shellTheme.panelBorder, background: shellTheme.panelStrongBg }}
       >
         <div className="mb-3 flex items-center justify-between">
           <p className="text-sm font-semibold" style={{ color: shellTheme.panelText }}>
@@ -263,21 +400,18 @@ function MobileToolbarSheet({
             type="button"
             onClick={() => onToggle(false)}
             className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium"
-            style={{
-              background: shellTheme.accentSoft,
-              color: shellTheme.panelText,
-            }}
+            style={{ background: shellTheme.accentSoft, color: shellTheme.panelText }}
           >
-            Thu gọn
+            Đóng
             <ChevronDown className="h-3.5 w-3.5" />
           </button>
         </div>
 
-        <div className="grid grid-cols-3 gap-2">
-          <ToolbarButton icon={Square} label="Nút" onClick={() => addNodeAtCenter(NODE_TYPES.STANDARD)} buttonStyle={{ background: shellTheme.accentSoft, color: shellTheme.panelText }} activeStyle={{ background: shellTheme.accent, color: '#fff' }} />
-          <ToolbarButton icon={Type} label="Văn bản" onClick={() => addNodeAtCenter(NODE_TYPES.TEXT)} buttonStyle={{ background: shellTheme.accentSoft, color: shellTheme.panelText }} activeStyle={{ background: shellTheme.accent, color: '#fff' }} />
-          <ToolbarButton icon={ImagePlus} label="Ảnh" onClick={() => addNodeAtCenter(NODE_TYPES.IMAGE)} buttonStyle={{ background: shellTheme.accentSoft, color: shellTheme.panelText }} activeStyle={{ background: shellTheme.accent, color: '#fff' }} />
-          <ToolbarButton icon={Diamond} label="Quyết định" onClick={() => addNodeAtCenter(NODE_TYPES.DECISION)} buttonStyle={{ background: shellTheme.accentSoft, color: shellTheme.panelText }} activeStyle={{ background: shellTheme.accent, color: '#fff' }} />
+        <div className="grid grid-cols-2 gap-2">
+          <ToolbarButton icon={Square} label="Nút" onClick={() => addNodeAtCenter(NODE_TYPES.STANDARD)} buttonStyle={sharedButtonStyle} activeStyle={sharedActiveStyle} />
+          <ToolbarButton icon={Type} label="Văn bản" onClick={() => addNodeAtCenter(NODE_TYPES.TEXT)} buttonStyle={sharedButtonStyle} activeStyle={sharedActiveStyle} />
+          <ToolbarButton icon={ImagePlus} label="Ảnh" onClick={() => addNodeAtCenter(NODE_TYPES.IMAGE)} buttonStyle={sharedButtonStyle} activeStyle={sharedActiveStyle} />
+          <ToolbarButton icon={Diamond} label="Quyết định" onClick={() => addNodeAtCenter(NODE_TYPES.DECISION)} buttonStyle={sharedButtonStyle} activeStyle={sharedActiveStyle} />
           <ToolbarButton
             icon={Link2}
             label="Nối cạnh"
@@ -286,45 +420,53 @@ function MobileToolbarSheet({
               setToolMode((current) => (current === 'connect' ? 'select' : 'connect'));
               onToggle(false);
             }}
-            buttonStyle={{ background: shellTheme.accentSoft, color: shellTheme.panelText }}
-            activeStyle={{ background: shellTheme.accent, color: '#fff' }}
+            buttonStyle={sharedButtonStyle}
+            activeStyle={sharedActiveStyle}
           />
-          <ToolbarButton icon={LayoutGrid} label="Bố cục" onClick={() => { onAutoLayout(); fitView({ padding: 0.2, duration: 250 }); }} buttonStyle={{ background: shellTheme.accentSoft, color: shellTheme.panelText }} activeStyle={{ background: shellTheme.accent, color: '#fff' }} />
-          <ToolbarButton icon={ImagePlus} label="OCR" onClick={onOpenUploadPanel} buttonStyle={{ background: shellTheme.accentSoft, color: shellTheme.panelText }} activeStyle={{ background: shellTheme.accent, color: '#fff' }} />
-          <ToolbarButton icon={Undo2} label="Hoàn tác" onClick={onUndo} disabled={!canUndo} buttonStyle={{ background: shellTheme.accentSoft, color: shellTheme.panelText }} activeStyle={{ background: shellTheme.accent, color: '#fff' }} />
-          <ToolbarButton icon={Redo2} label="Làm lại" onClick={onRedo} disabled={!canRedo} buttonStyle={{ background: shellTheme.accentSoft, color: shellTheme.panelText }} activeStyle={{ background: shellTheme.accent, color: '#fff' }} />
-          <ToolbarButton icon={Maximize2} label="Vừa khung" onClick={() => fitView({ padding: 0.2, duration: 250 })} buttonStyle={{ background: shellTheme.accentSoft, color: shellTheme.panelText }} activeStyle={{ background: shellTheme.accent, color: '#fff' }} />
-          <ToolbarButton icon={ZoomOut} label="Thu nhỏ" onClick={() => zoomOut({ duration: 200 })} buttonStyle={{ background: shellTheme.accentSoft, color: shellTheme.panelText }} activeStyle={{ background: shellTheme.accent, color: '#fff' }} />
-          <ToolbarButton icon={ZoomIn} label="Phóng to" onClick={() => zoomIn({ duration: 200 })} buttonStyle={{ background: shellTheme.accentSoft, color: shellTheme.panelText }} activeStyle={{ background: shellTheme.accent, color: '#fff' }} />
-          <button
-            type="button"
-            onClick={onSave}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-cyan-400 px-3 py-2.5 text-sm font-semibold text-slate-950 shadow-lg"
-          >
-            <Save className="h-4 w-4" />
-            {saveState === 'saving' ? 'Lưu...' : 'Lưu'}
-          </button>
+          <ToolbarButton
+            icon={LayoutGrid}
+            label="Bố cục"
+            onClick={() => {
+              onAutoLayout();
+              fitView({ padding: 0.2, duration: 250 });
+              onToggle(false);
+            }}
+            buttonStyle={sharedButtonStyle}
+            activeStyle={sharedActiveStyle}
+          />
+          <ToolbarButton icon={ImagePlus} label="OCR" onClick={() => { onOpenUploadPanel(); onToggle(false); }} buttonStyle={sharedButtonStyle} activeStyle={sharedActiveStyle} />
+          <ToolbarButton icon={Undo2} label="Hoàn tác" onClick={() => { onUndo(); onToggle(false); }} disabled={!canUndo} buttonStyle={sharedButtonStyle} activeStyle={sharedActiveStyle} />
+          <ToolbarButton icon={Redo2} label="Làm lại" onClick={() => { onRedo(); onToggle(false); }} disabled={!canRedo} buttonStyle={sharedButtonStyle} activeStyle={sharedActiveStyle} />
+          <ToolbarButton icon={Maximize2} label="Vừa khung" onClick={() => { fitView({ padding: 0.2, duration: 250 }); onToggle(false); }} buttonStyle={sharedButtonStyle} activeStyle={sharedActiveStyle} />
+          <ToolbarButton icon={ZoomOut} label="Thu nhỏ" onClick={() => zoomOut({ duration: 200 })} buttonStyle={sharedButtonStyle} activeStyle={sharedActiveStyle} />
+          <ToolbarButton icon={ZoomIn} label="Phóng to" onClick={() => zoomIn({ duration: 200 })} buttonStyle={sharedButtonStyle} activeStyle={sharedActiveStyle} />
         </div>
 
-        <div className="mt-3 rounded-2xl border px-3 py-2" style={{ borderColor: shellTheme.panelBorder }}>
-          <div className="flex items-center gap-2 text-sm" style={{ color: shellTheme.panelText }}>
+        <div className="mt-3 rounded-[1.35rem] border px-3 py-3" style={{ borderColor: shellTheme.panelBorder }}>
+          <div className="mb-3 flex items-center gap-2 text-sm" style={{ color: shellTheme.panelText }}>
             <Palette className="h-4 w-4" style={{ color: shellTheme.accent }} />
-            <select
-              value={themeId}
-              onChange={(event) => onThemeChange(event.target.value)}
-              className="w-full bg-transparent outline-none"
-              aria-label="Chọn giao diện"
-            >
-              {Object.values(THEME_IDS).map((id) => (
-                <option key={id} value={id} className="bg-slate-900 text-white">
-                  {themes[id].name}
-                </option>
-              ))}
-            </select>
+            <span>Chủ đề canvas</span>
+          </div>
+          <div className="grid gap-2">
+            {Object.values(THEME_IDS).map((id) => (
+              <ThemeSwatch key={id} themeKey={id} active={themeId === id} onClick={onThemeChange} detailed />
+            ))}
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            onSave();
+            onToggle(false);
+          }}
+          className="mt-3 inline-flex items-center justify-center gap-2 rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-semibold text-slate-950 shadow-lg"
+        >
+          {saveState === 'saving' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          {saveState === 'saving' ? 'Lưu...' : 'Lưu'}
+        </button>
       </div>
-    </Panel>
+    </div>
   );
 }
 
@@ -367,6 +509,7 @@ export default function MindMapViewer({
   onSave,
   saveState,
   fitViewNonce,
+  onCanvasMount,
 }) {
   const [selectedEdge, setSelectedEdge] = useState(null);
   const [toolMode, setToolMode] = useState('select');
@@ -378,6 +521,14 @@ export default function MindMapViewer({
   const theme = getTheme(themeId);
   const shellTheme = theme.shell || {};
   const closeNodeMenu = useCallback(() => setNodeMenu(null), []);
+
+  useEffect(() => {
+    onCanvasMount?.(containerRef.current);
+
+    return () => {
+      onCanvasMount?.(null);
+    };
+  }, [onCanvasMount]);
 
   const openNodeMenu = useCallback((event, node) => {
     const bounds = containerRef.current?.getBoundingClientRect();
@@ -462,7 +613,9 @@ export default function MindMapViewer({
         )
       );
       setSelectedEdge((currentEdge) =>
-        currentEdge && (cascadeNodeIds.has(String(currentEdge.source)) || cascadeNodeIds.has(String(currentEdge.target)))
+        currentEdge &&
+        (cascadeNodeIds.has(String(currentEdge.source)) ||
+          cascadeNodeIds.has(String(currentEdge.target)))
           ? null
           : currentEdge
       );
@@ -598,7 +751,7 @@ export default function MindMapViewer({
   return (
     <div
       ref={containerRef}
-      className="h-full w-full"
+      className="workspace-canvas-shell h-full w-full"
       style={{
         background: theme.background,
       }}
@@ -630,12 +783,17 @@ export default function MindMapViewer({
         <MiniMap
           pannable
           zoomable
-          className="!border !backdrop-blur-xl"
+          className="workspace-minimap !border !backdrop-blur-xl"
           style={{
             borderColor: shellTheme.panelBorder,
             background: shellTheme.panelBg,
           }}
-          nodeStrokeColor={(node) => extractColorToken(node.style?.borderColor || node.style?.border, node.data?.accentColor || theme.edge.stroke)}
+          nodeStrokeColor={(node) =>
+            extractColorToken(
+              node.style?.borderColor || node.style?.border,
+              node.data?.accentColor || theme.edge.stroke
+            )
+          }
           nodeColor={(node) => {
             const background = node.style?.background;
 
@@ -648,7 +806,7 @@ export default function MindMapViewer({
           nodeBorderRadius={18}
         />
 
-        <FlowToolbar
+        <DesktopToolRail
           containerRef={containerRef}
           toolMode={toolMode}
           setToolMode={setToolMode}
@@ -665,7 +823,7 @@ export default function MindMapViewer({
           onThemeChange={onThemeChange}
         />
 
-        <MobileToolbarSheet
+        <MobileToolDrawer
           containerRef={containerRef}
           toolMode={toolMode}
           setToolMode={setToolMode}
@@ -686,10 +844,9 @@ export default function MindMapViewer({
 
         <AutoFitController fitViewNonce={fitViewNonce} />
       </ReactFlow>
-
       {nodeMenu && (
         <div
-          className="absolute z-30 w-72 rounded-[1.75rem] border p-4 shadow-2xl backdrop-blur-2xl"
+          className="workspace-node-menu absolute z-30 rounded-[1.75rem] border p-4 shadow-2xl backdrop-blur-2xl"
           style={{
             left: nodeMenu.x,
             top: nodeMenu.y,
@@ -805,7 +962,7 @@ export default function MindMapViewer({
       {nodes.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6">
           <div
-            className="max-w-xl rounded-[2rem] border px-8 py-10 text-center shadow-2xl backdrop-blur-xl"
+            className="workspace-empty-state rounded-[2rem] border px-8 py-8 text-center shadow-2xl backdrop-blur-xl"
             style={{
               borderColor: shellTheme.panelBorder,
               background: shellTheme.panelStrongBg,
@@ -814,11 +971,11 @@ export default function MindMapViewer({
             <p className="text-xs uppercase tracking-[0.3em]" style={{ color: shellTheme.accent }}>
               Khung vẽ trống
             </p>
-            <h2 className="mt-3 text-3xl font-semibold" style={{ color: shellTheme.panelText }}>
+            <h2 className="mt-3 text-2xl font-semibold" style={{ color: shellTheme.panelText }}>
               Bắt đầu từ AI, ảnh ghi chú hoặc tự thêm nút
             </h2>
             <p className="mt-4 text-sm leading-7" style={{ color: shellTheme.panelMuted }}>
-              Dùng thanh công cụ nổi để thêm nút chuẩn, văn bản, hình ảnh hoặc nút quyết định. Bạn cũng có thể quét ghi chú hoặc yêu cầu trợ lý AI mở rộng sơ đồ hiện tại ngay trên canvas.
+              Dùng rail công cụ bên trái để thêm nút chuẩn, văn bản, hình ảnh hoặc nút quyết định. Bạn cũng có thể quét ghi chú hoặc yêu cầu trợ lý AI mở rộng sơ đồ hiện tại ngay trên canvas.
             </p>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import './App.css';
 import Header from './components/Header';
 import DiagramsDashboard from './pages/DiagramsDashboard';
 import MindMapEditor from './pages/MindMapEditor';
@@ -15,25 +16,46 @@ function PrivateRoute({ children }) {
   return token ? children : <Navigate to="/login" replace />;
 }
 
+function RouteFrame({ children }) {
+  return <div className="flex h-full min-h-0 min-w-0 flex-col">{children}</div>;
+}
+
 export default function App() {
   const location = useLocation();
   const isAuthRoute = AUTH_ROUTES.has(location.pathname);
+  const showHeader = !isAuthRoute && !!localStorage.getItem('access_token');
 
   return (
-    <div className="h-screen overflow-hidden bg-slate-950 text-slate-100">
-      {!isAuthRoute && <Header />}
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-slate-950 text-slate-100">
+      {showHeader ? <Header /> : null}
 
-      <div className={isAuthRoute ? 'h-full' : 'h-[calc(100vh-5rem)]'}>
+      <div className="flex min-h-0 flex-1 flex-col">
         <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+          <Route
+            path="/login"
+            element={
+              <RouteFrame>
+                <Login />
+              </RouteFrame>
+            }
+          />
+          <Route
+            path="/register"
+            element={
+              <RouteFrame>
+                <Register />
+              </RouteFrame>
+            }
+          />
 
           <Route path="/" element={<Navigate to="/workspace" replace />} />
           <Route
             path="/workspace"
             element={
               <PrivateRoute>
-                <MindMapEditor />
+                <RouteFrame>
+                  <MindMapEditor />
+                </RouteFrame>
               </PrivateRoute>
             }
           />
@@ -41,7 +63,9 @@ export default function App() {
             path="/diagrams"
             element={
               <PrivateRoute>
-                <DiagramsDashboard />
+                <RouteFrame>
+                  <DiagramsDashboard />
+                </RouteFrame>
               </PrivateRoute>
             }
           />
@@ -49,7 +73,9 @@ export default function App() {
             path="/editor/:id"
             element={
               <PrivateRoute>
-                <MindMapEditor />
+                <RouteFrame>
+                  <MindMapEditor />
+                </RouteFrame>
               </PrivateRoute>
             }
           />
@@ -57,7 +83,9 @@ export default function App() {
             path="/settings"
             element={
               <PrivateRoute>
-                <Settings />
+                <RouteFrame>
+                  <Settings />
+                </RouteFrame>
               </PrivateRoute>
             }
           />

@@ -1,6 +1,17 @@
 ﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { applyEdgeChanges, applyNodeChanges } from 'reactflow';
-import { AlertCircle, Bot, CheckCircle2, Loader2, PanelLeftOpen } from 'lucide-react';
+import {
+  AlertCircle,
+  Bot,
+  CheckCircle2,
+  Download,
+  FileJson,
+  FileText,
+  Image as ImageIcon,
+  Loader2,
+  PanelLeftOpen,
+  Printer,
+} from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import {
@@ -18,6 +29,12 @@ import AIAssistantSidebar from '../components/AIAssistantSidebar';
 import DiagramSidebar from '../components/DiagramSidebar';
 import MindMapViewer from '../components/MindMapViewer';
 import UploadPanel from '../components/UploadPanel';
+import {
+  exportDiagramPng,
+  exportDiagramJson,
+  exportDiagramMarkdown,
+  exportDiagramPdf,
+} from '../utils/exportUtils';
 import {
   applyThemeToDiagram,
   autoLayoutDiagram,
@@ -75,6 +92,10 @@ function resolveAssistantSnapshot(response, currentNodes, currentEdges, fallback
   };
 }
 
+function getInitialAssistantOpen() {
+  return false;
+}
+
 export default function MindMapEditor() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -87,7 +108,7 @@ export default function MindMapEditor() {
   const [currentDiagramId, setCurrentDiagramId] = useState(null);
   const [diagrams, setDiagrams] = useState([]);
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(location.pathname === '/diagrams');
-  const [assistantOpen, setAssistantOpen] = useState(true);
+  const [assistantOpen, setAssistantOpen] = useState(getInitialAssistantOpen);
   const [showUploadPanel, setShowUploadPanel] = useState(false);
   const [listState, setListState] = useState({ loading: true, error: '' });
   const [saveState, setSaveState] = useState({ status: 'idle', message: '' });
@@ -97,6 +118,7 @@ export default function MindMapEditor() {
   const [isDirty, setIsDirty] = useState(false);
   const [historyState, setHistoryState] = useState({ canUndo: false, canRedo: false });
   const [fitViewNonce, setFitViewNonce] = useState(0);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
 
   const historyRef = useRef([]);
   const futureRef = useRef([]);
@@ -108,6 +130,8 @@ export default function MindMapEditor() {
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
   const themeRef = useRef(themeId);
+  const exportMenuRef = useRef(null);
+  const canvasContainerRef = useRef(null);
   const activeTheme = useMemo(() => getTheme(themeId), [themeId]);
   const shellTheme = activeTheme.shell || {};
 
@@ -128,6 +152,32 @@ export default function MindMapEditor() {
       setLeftSidebarOpen(true);
     }
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!exportMenuOpen) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target)) {
+        setExportMenuOpen(false);
+      }
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setExportMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [exportMenuOpen]);
 
   const updateHistoryState = useCallback(() => {
     setHistoryState({
@@ -649,6 +699,99 @@ export default function MindMapEditor() {
     [applySnapshot, currentDiagramId, diagramTitle]
   );
 
+  const diagramMetrics = useMemo(
+    () => ({
+      nodes: nodes.length,
+      edges: edges.length,
+    }),
+    [edges.length, nodes.length]
+  );
+
+  const compactSaveMessage = useMemo(() => {
+    if (saveState.status === 'error') {
+      return 'Có lỗi';
+    }
+
+    if (saveState.status === 'saved') {
+      return 'Đã lưu';
+    }
+
+    if (saveState.status === 'saving' || saveState.status === 'loading') {
+      return 'Đang xử lý';
+    }
+
+    return isDirty ? 'Chưa lưu' : 'Sẵn sàng';
+  }, [isDirty, saveState.status]);
+
+  const handleExport = useCallback(
+    async (format) => {
+      const snapshot = {
+        nodes: nodesRef.current,
+        edges: edgesRef.current,
+        themeId: themeRef.current,
+      };
+      const resolvedTitle = diagramTitle.trim() || DEFAULT_DIAGRAM_TITLE;
+
+      if (!hasPersistableContent(snapshot, resolvedTitle)) {
+        setSaveState({
+          status: 'error',
+          message: 'Sơ đồ đang trống, chưa có dữ liệu để xuất.',
+        });
+        setExportMenuOpen(false);
+        return;
+      }
+
+      try {
+        if (format === 'json') {
+          exportDiagramJson({
+            title: resolvedTitle,
+            diagramId: currentDiagramId,
+            snapshot,
+          });
+        } else if (format === 'png') {
+          await exportDiagramPng({
+            title: resolvedTitle,
+            snapshot,
+            container: canvasContainerRef.current,
+          });
+        } else if (format === 'markdown') {
+          exportDiagramMarkdown({
+            title: resolvedTitle,
+            diagramId: currentDiagramId,
+            snapshot,
+          });
+        } else {
+          await exportDiagramPdf({
+            title: resolvedTitle,
+            snapshot,
+            container: canvasContainerRef.current,
+          });
+        }
+
+        setSaveState({
+          status: 'saved',
+          message:
+            format === 'png'
+              ? 'Đã tải xuống ảnh PNG của sơ đồ hiện tại.'
+              : format === 'pdf'
+              ? 'Đã tải xuống file PDF của sơ đồ hiện tại.'
+              : `Đã xuất sơ đồ dạng ${format.toUpperCase()}.`,
+        });
+      } catch (error) {
+        setSaveState({
+          status: 'error',
+          message:
+            error instanceof Error
+              ? error.message
+              : 'Không thể xuất sơ đồ lúc này.',
+        });
+      } finally {
+        setExportMenuOpen(false);
+      }
+    },
+    [currentDiagramId, diagramTitle]
+  );
+
   const statusTone = useMemo(() => {
     const isLightTheme = themeId === DEFAULT_THEME_ID;
 
@@ -675,11 +818,247 @@ export default function MindMapEditor() {
 
   return (
     <div
-      className="relative flex h-full overflow-hidden"
+      className="workspace-shell relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
       style={{
         background: shellTheme.workspaceBg,
       }}
     >
+      <div
+        className="relative z-40 overflow-visible border-b px-4 py-2.5 backdrop-blur-xl"
+        style={{
+          borderColor: shellTheme.panelBorder,
+          background: shellTheme.panelStrongBg,
+        }}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={() => setLeftSidebarOpen((current) => !current)}
+              className="inline-flex h-10 items-center gap-2 rounded-2xl border px-3 text-sm font-medium transition-colors hover:brightness-105"
+              style={{
+                borderColor: shellTheme.panelBorder,
+                background: leftSidebarOpen ? shellTheme.accentSoft : shellTheme.panelBg,
+                color: shellTheme.panelText,
+              }}
+            >
+              <PanelLeftOpen className="h-4 w-4" style={{ color: shellTheme.accent }} />
+              <span className="hidden sm:inline">{leftSidebarOpen ? 'Ẩn thư viện' : 'Thư viện'}</span>
+            </button>
+
+            <div className="min-w-0 flex-1">
+              <input
+                value={diagramTitle}
+                onChange={(event) => setDiagramTitle(event.target.value)}
+                placeholder="Tên sơ đồ"
+                className="w-full bg-transparent text-lg font-semibold tracking-tight outline-none sm:text-xl"
+                style={{
+                  color: shellTheme.panelText,
+                }}
+              />
+
+              <div
+                className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] uppercase tracking-[0.2em]"
+                style={{ color: shellTheme.panelMuted }}
+              >
+                <span
+                  className="rounded-full border px-2 py-1"
+                  style={{
+                    borderColor: shellTheme.panelBorder,
+                    background: shellTheme.accentSoft,
+                  }}
+                >
+                  {diagramMetrics.nodes} node
+                </span>
+                <span
+                  className="rounded-full border px-2 py-1"
+                  style={{
+                    borderColor: shellTheme.panelBorder,
+                    background: shellTheme.accentSoft,
+                  }}
+                >
+                  {diagramMetrics.edges} edge
+                </span>
+                <span
+                  className="rounded-full border px-2 py-1"
+                  style={{
+                    borderColor: shellTheme.panelBorder,
+                    background: shellTheme.accentSoft,
+                  }}
+                >
+                  {activeTheme.name}
+                </span>
+                <span>{currentDiagramId ? `#${currentDiagramId}` : 'Bản nháp'}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setAssistantOpen((current) => !current)}
+              className="inline-flex h-10 items-center gap-2 rounded-2xl border px-3 text-sm font-medium transition-colors hover:brightness-105"
+              style={{
+                borderColor: shellTheme.panelBorder,
+                background: assistantOpen ? shellTheme.accentSoft : shellTheme.panelBg,
+                color: shellTheme.panelText,
+              }}
+            >
+              <Bot className="h-4 w-4" style={{ color: shellTheme.accent }} />
+              <span className="hidden sm:inline">{assistantOpen ? 'Ẩn AI' : 'AI'}</span>
+            </button>
+
+            <div ref={exportMenuRef} className="relative z-50">
+              <button
+                type="button"
+                onClick={() => setExportMenuOpen((current) => !current)}
+                className="inline-flex h-10 items-center gap-2 rounded-2xl bg-cyan-400 px-3.5 text-sm font-semibold text-slate-950 shadow-lg shadow-cyan-400/20 transition-transform hover:scale-[1.01]"
+              >
+                <Download className="h-4 w-4" />
+                <span className="hidden sm:inline">Xuất</span>
+              </button>
+
+              {exportMenuOpen && (
+                <div
+                  className="absolute right-0 top-[calc(100%+0.7rem)] z-[120] w-72 rounded-[1.6rem] border p-3 shadow-2xl backdrop-blur-2xl"
+                  style={{
+                    borderColor: shellTheme.panelBorder,
+                    background: shellTheme.panelStrongBg,
+                  }}
+                >
+                  <div className="mb-2 px-1">
+                    <p className="text-[11px] uppercase tracking-[0.24em]" style={{ color: shellTheme.accent }}>
+                      Export
+                    </p>
+                    <p className="mt-1 text-xs leading-5" style={{ color: shellTheme.panelMuted }}>
+                      PNG chụp đúng canvas hiện tại, PDF là ảnh canvas trong tài liệu, JSON và Markdown dành cho lưu trữ.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => handleExport('png')}
+                      className="flex w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left text-sm font-medium transition-colors hover:brightness-105"
+                      style={{
+                        borderColor: shellTheme.panelBorder,
+                        background: shellTheme.panelBg,
+                        color: shellTheme.panelText,
+                      }}
+                    >
+                      <ImageIcon className="h-4 w-4" style={{ color: shellTheme.accent }} />
+                      PNG
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleExport('pdf')}
+                      className="flex w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left text-sm font-medium transition-colors hover:brightness-105"
+                      style={{
+                        borderColor: shellTheme.panelBorder,
+                        background: shellTheme.panelBg,
+                        color: shellTheme.panelText,
+                      }}
+                    >
+                      <Printer className="h-4 w-4" style={{ color: shellTheme.accent }} />
+                      PDF
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleExport('json')}
+                      className="flex w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left text-sm font-medium transition-colors hover:brightness-105"
+                      style={{
+                        borderColor: shellTheme.panelBorder,
+                        background: shellTheme.panelBg,
+                        color: shellTheme.panelText,
+                      }}
+                    >
+                      <FileJson className="h-4 w-4" style={{ color: shellTheme.accent }} />
+                      JSON
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleExport('markdown')}
+                      className="flex w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left text-sm font-medium transition-colors hover:brightness-105"
+                      style={{
+                        borderColor: shellTheme.panelBorder,
+                        background: shellTheme.panelBg,
+                        color: shellTheme.panelText,
+                      }}
+                    >
+                      <FileText className="h-4 w-4" style={{ color: shellTheme.accent }} />
+                      Markdown
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div
+              className={`rounded-2xl border px-3 py-2 text-xs ${statusTone}`}
+              style={{
+                borderColor:
+                  saveState.status === 'error'
+                    ? undefined
+                    : saveState.status === 'saved'
+                      ? undefined
+                      : saveState.status === 'saving' || saveState.status === 'loading'
+                        ? undefined
+                        : shellTheme.panelBorder,
+                background: saveState.status === 'idle' ? shellTheme.panelBg : undefined,
+                color: saveState.status === 'idle' ? shellTheme.panelText : undefined,
+              }}
+            >
+              <div className="flex items-center gap-2">
+                {saveState.status === 'error' ? (
+                  <AlertCircle className="h-3.5 w-3.5" />
+                ) : saveState.status === 'saved' ? (
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                ) : saveState.status === 'saving' || saveState.status === 'loading' ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : null}
+                <span>{compactSaveMessage}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="relative min-h-0 flex-1">
+        {showUploadPanel && (
+          <UploadPanel
+            onUpload={handleUpload}
+            loading={uploading}
+            onClose={() => setShowUploadPanel(false)}
+          />
+        )}
+
+        <MindMapViewer
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={handleNodesChange}
+          onEdgesChange={handleEdgesChange}
+          onNodesDelete={handleNodesDelete}
+          setNodes={setNodes}
+          setEdges={setEdges}
+          themeId={themeId}
+          onThemeChange={handleThemeChange}
+          onNodeDataChange={handleNodeDataChange}
+          onEdgeUpdate={handleEdgeUpdate}
+          onAutoLayout={handleAutoLayout}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          canUndo={historyState.canUndo}
+          canRedo={historyState.canRedo}
+          onOpenUploadPanel={() => setShowUploadPanel(true)}
+          onSave={handleSaveDiagram}
+          saveState={saveState.status}
+          fitViewNonce={fitViewNonce}
+          onCanvasMount={(node) => {
+            canvasContainerRef.current = node;
+          }}
+        />
+      </div>
+
       <DiagramSidebar
         isOpen={leftSidebarOpen}
         diagrams={diagrams}
@@ -694,102 +1073,6 @@ export default function MindMapEditor() {
         onDeleteDiagram={handleDeleteDiagram}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div
-          className="border-b px-5 py-4 backdrop-blur-xl"
-          style={{
-            borderColor: shellTheme.panelBorder,
-            background: shellTheme.panelStrongBg,
-          }}
-        >
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <p
-                className="text-xs uppercase tracking-[0.24em]"
-                style={{ color: shellTheme.accent }}
-              >
-                Phiên làm việc
-              </p>
-              <input
-                value={diagramTitle}
-                onChange={(event) => setDiagramTitle(event.target.value)}
-                placeholder="Tên sơ đồ"
-                className="mt-2 w-full max-w-2xl bg-transparent text-2xl font-semibold tracking-tight outline-none"
-                style={{
-                  color: shellTheme.panelText,
-                }}
-              />
-              <p className="mt-2 text-sm" style={{ color: shellTheme.panelMuted }}>
-                {currentDiagramId ? `Đang chỉnh sửa sơ đồ #${currentDiagramId}` : 'Bản nháp chưa lưu'}
-                {isDirty ? ' · có thay đổi chưa lưu' : ' · trạng thái cục bộ đã đồng bộ'}
-              </p>
-            </div>
-
-            <div
-              className={`rounded-2xl border px-4 py-3 text-sm ${statusTone}`}
-              style={{
-                borderColor:
-                  saveState.status === 'error'
-                    ? undefined
-                    : saveState.status === 'saved'
-                      ? undefined
-                      : saveState.status === 'saving' || saveState.status === 'loading'
-                        ? undefined
-                        : shellTheme.panelBorder,
-                background:
-                  saveState.status === 'idle' ? shellTheme.panelBg : undefined,
-                color:
-                  saveState.status === 'idle' ? shellTheme.panelText : undefined,
-              }}
-            >
-              <div className="flex items-center gap-2">
-                {saveState.status === 'error' ? (
-                  <AlertCircle className="h-4 w-4" />
-                ) : saveState.status === 'saved' ? (
-                  <CheckCircle2 className="h-4 w-4" />
-                ) : saveState.status === 'saving' || saveState.status === 'loading' ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : null}
-                <span>{saveState.message || 'Không gian làm việc đã sẵn sàng.'}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="relative min-h-0 flex-1">
-          {showUploadPanel && (
-            <UploadPanel
-              onUpload={handleUpload}
-              loading={uploading}
-              onClose={() => setShowUploadPanel(false)}
-            />
-          )}
-
-          <MindMapViewer
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={handleNodesChange}
-            onEdgesChange={handleEdgesChange}
-            onNodesDelete={handleNodesDelete}
-            setNodes={setNodes}
-            setEdges={setEdges}
-            themeId={themeId}
-            onThemeChange={handleThemeChange}
-            onNodeDataChange={handleNodeDataChange}
-            onEdgeUpdate={handleEdgeUpdate}
-            onAutoLayout={handleAutoLayout}
-            onUndo={handleUndo}
-            onRedo={handleRedo}
-            canUndo={historyState.canUndo}
-            canRedo={historyState.canRedo}
-            onOpenUploadPanel={() => setShowUploadPanel(true)}
-            onSave={handleSaveDiagram}
-            saveState={saveState.status}
-            fitViewNonce={fitViewNonce}
-          />
-        </div>
-      </div>
-
       <AIAssistantSidebar
         isOpen={assistantOpen}
         messages={chatMessages}
@@ -799,26 +1082,6 @@ export default function MindMapEditor() {
         onToggle={() => setAssistantOpen((current) => !current)}
         onSendPrompt={handleAssistantPrompt}
       />
-
-      <div className="pointer-events-none fixed bottom-4 left-4 right-4 z-30 flex items-center justify-between lg:hidden">
-        <button
-          type="button"
-          onClick={() => setLeftSidebarOpen(true)}
-          className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/85 px-4 py-3 text-sm font-medium text-white shadow-xl backdrop-blur-xl"
-        >
-          <PanelLeftOpen className="h-4 w-4 text-cyan-300" />
-          Sơ đồ
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setAssistantOpen(true)}
-          className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/85 px-4 py-3 text-sm font-medium text-white shadow-xl backdrop-blur-xl"
-        >
-          <Bot className="h-4 w-4 text-cyan-300" />
-          AI
-        </button>
-      </div>
     </div>
   );
 }
