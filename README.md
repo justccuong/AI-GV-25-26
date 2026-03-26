@@ -1,53 +1,58 @@
 # AI-GV-25-26
 
-## Project Overview
-This project is aimed at developing an Artificial Intelligence system for the GV 25-26 course. It focuses on key methodologies in AI and their applications in various domains.
+This repository showcases an integration of **FastAPI** and **Vite React** for building modern web applications.
 
-## Tech Stack
-- **Programming Language:** Python
-- **Web Framework:** Flask
-- **Database:** PostgreSQL
-- **Machine Learning Libraries:** TensorFlow, Scikit-learn
-- **Frontend Technologies:** HTML, CSS, JavaScript
+## FastAPI
+FastAPI is a modern web framework for building APIs with Python 3.6+ based on standard Python type hints.
 
-## Project Structure
-```
-AI-GV-25-26/
-├── app/
-│   ├── __init__.py
-│   ├── models.py
-│   ├── routes.py
-│   └── templates/
-│       └── index.html
-├── migrations/
-├── tests/
-├── requirements.txt
-├── config.py
-└── run.py
-```
+### Features:
+- Fast: Very high performance, on par with NodeJS and Go (thanks to Starlette and Pydantic).
+- Easy: Designed to be easy to use and learn. Less time debugging.
+- Short: Minimize code duplication. Multiple features from each parameter declaration.
+- Robust: Get production-ready code. With automatic interactive documentation.
 
-## Installation
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/justccuong/AI-GV-25-26.git
-   cd AI-GV-25-26
-   ```
-2. Install the dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Setup the database:
-   Configure the database settings in `config.py` and run migrations:
-   ```bash
-   flask db upgrade
-   ```
-
-## Usage
-To start the application, use:
+### Installation:
+To install FastAPI, you can use pip:
 ```bash
-python run.py
+pip install fastapi
 ```
-Access the application in your web browser at `http://127.0.0.1:5000/`.
 
-## Deployment
-For deployment, consider using a cloud platform like Heroku or AWS. Make sure to configure the environment variables and database settings accordingly. You can also use Docker for containerization to simplify the deployment process.
+### Example FastAPI Application:
+```python
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get("/")
+def read_root():
+    return {"Hello": "World"}
+```
+
+## Vite React
+Vite is a new breed of build tool that significantly improves the frontend development experience.
+
+### Features:
+- Blazing Fast: Instant server start and super-fast Hot Module Replacement (HMR).
+- Rich Features: Out of the box support for TypeScript, JSX, and more.
+- Optimized Build: Leverages Rollup for production builds.
+
+### Installation:
+To install Vite, you can run:
+```bash
+npm create vite@latest
+```
+
+### Example Vite React Application:
+```javascript
+import React from 'react';
+import ReactDOM from 'react-dom';
+
+function App() {
+    return <h1>Hello Vite + React!</h1>;
+}
+
+ReactDOM.render(<App />, document.getElementById('root'));
+```
+
+## Contributing
+Feel free to contribute to this repository by opening issues or pull requests.
