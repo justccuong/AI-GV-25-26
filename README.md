@@ -1,4 +1,3 @@
-````markdown
 # 🤖 AI-GV-25-26 | Intelligent Education Assistant 🚀
 
 <p align="center">
@@ -25,7 +24,7 @@
 
 ### 📂 Directory Structure
 ```bash
-v2 AI-GV-25-26/
+AI-GV-25-26/
 ├── 📂 backend/             # FastAPI Application (Python)
 │   ├── main.py             # App entry & Endpoints
 │   ├── auth.py             # JWT & Security logic
@@ -37,7 +36,6 @@ v2 AI-GV-25-26/
 └── 📄 README.md            # Documentation
 ````
 
------
 
 ## 🚀 Installation & Setup
 
@@ -122,8 +120,8 @@ npm run dev
 
 -----
 
-\<p align="center"\>
-Built with ✨ & 💻 by \<b\>Hoàng tử\</b\>
-\</p\>
+
+Built with ✨ & 💻 by justccuong
+
 
 ```
