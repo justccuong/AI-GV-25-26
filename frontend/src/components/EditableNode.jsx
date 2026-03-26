@@ -1,15 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, memo } from 'react';
 import { Handle, NodeResizer, Position } from 'reactflow';
 import { Bold, Italic, Link2 } from 'lucide-react';
 
 const FONT_SIZE_OPTIONS = [12, 14, 16, 18, 22, 28];
-
-const NODE_TYPE_LABELS = {
-  standard: 'Chuẩn',
-  text: 'Văn bản',
-  image: 'Hình ảnh',
-  decision: 'Quyết định',
-};
 
 function isHtml(value) {
   return typeof value === 'string' && /<[a-z][\s\S]*>/i.test(value);
@@ -27,7 +20,7 @@ function stripHtml(value) {
   return typeof value === 'string' ? value.replace(/<[^>]*>/g, ' ').trim() : '';
 }
 
-export default function EditableNode({ data, selected, id }) {
+function EditableNode({ data, selected, id }) {
   const [fontSizeDraft, setFontSizeDraft] = useState(null);
   const [draftImageUrl, setDraftImageUrl] = useState(null);
   const contentRef = useRef(null);
@@ -156,14 +149,13 @@ export default function EditableNode({ data, selected, id }) {
       boxSizing: 'border-box',
       overflow: 'hidden',
       boxShadow: data.isConnectSource
-        ? '0 0 0 3px rgba(34,197,94,0.55), 0 18px 45px rgba(15,23,42,0.18)'
+        ? '0 0 0 3px rgba(34,197,94,0.5)'
         : nodeStyle.boxShadow,
     };
   }, [data.isConnectSource, data.style]);
 
   const bodyClasses = `mindmap-node-content ${isEditing ? 'nodrag' : ''}`;
   const nodeType = data.nodeType || 'standard';
-  const showTypeBadge = !data.isRoot && nodeType !== 'standard';
 
   return (
     <div ref={nodeRef} style={wrapperStyle}>
@@ -219,12 +211,6 @@ export default function EditableNode({ data, selected, id }) {
 
       <div style={surfaceStyle}>
         <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-4 py-4">
-          {showTypeBadge && (
-            <span className="rounded-full border border-black/5 bg-white/35 px-2.5 py-0.5 text-[9px] uppercase tracking-[0.18em] text-current/45 backdrop-blur-sm">
-              {NODE_TYPE_LABELS[nodeType] || NODE_TYPE_LABELS.standard}
-            </span>
-          )}
-
           {nodeType === 'image' && (
             <div className="flex w-full flex-1 flex-col items-center justify-center gap-3">
               {resolvedImageUrl ? (
@@ -287,3 +273,22 @@ export default function EditableNode({ data, selected, id }) {
     </div>
   );
 }
+
+export default memo(EditableNode, (prev, next) => {
+  return (
+    prev.selected === next.selected &&
+    prev.data.label === next.data.label &&
+    prev.data.fontSize === next.data.fontSize &&
+    prev.data.imageUrl === next.data.imageUrl &&
+    prev.data.colorOverride === next.data.colorOverride &&
+    prev.data.disableEditing === next.data.disableEditing &&
+    prev.data.isConnectSource === next.data.isConnectSource &&
+    prev.data.isEditingActive === next.data.isEditingActive &&
+    prev.data.nodeType === next.data.nodeType &&
+    prev.data.style?.background === next.data.style?.background &&
+    prev.data.style?.borderColor === next.data.style?.borderColor &&
+    prev.data.style?.boxShadow === next.data.style?.boxShadow &&
+    prev.data.style?.width === next.data.style?.width &&
+    prev.data.style?.height === next.data.style?.height
+  );
+});

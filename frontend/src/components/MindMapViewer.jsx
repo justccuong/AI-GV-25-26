@@ -59,6 +59,8 @@ function ToolbarButton({
   onClick,
   buttonStyle,
   activeStyle,
+  onMouseEnter,
+  onMouseLeave,
 }) {
   const IconComponent = icon;
 
@@ -67,13 +69,14 @@ function ToolbarButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       className={[
         'inline-flex items-center gap-2 border text-sm font-medium transition-all',
-        compact ? 'h-10 w-10 justify-center rounded-[1rem] px-0 py-0' : 'w-full justify-start rounded-2xl px-3 py-2.5',
-        disabled ? 'cursor-not-allowed opacity-40' : '',
+        compact ? 'h-10 w-10 justify-center rounded-2xl px-0 py-0' : 'w-full justify-start rounded-2xl px-3 py-2.5',
+        disabled ? 'cursor-not-allowed opacity-40' : 'hover:brightness-110',
       ].join(' ')}
       style={active ? { ...buttonStyle, ...activeStyle } : buttonStyle}
-      title={label}
       aria-label={label}
     >
       <IconComponent className={['h-4 w-4', spinning ? 'animate-spin' : ''].join(' ')} />
@@ -168,7 +171,7 @@ function ThemePreviewCanvas({ theme, compact = false }) {
   );
 }
 
-function ThemeSwatch({ themeKey, active, onClick, detailed = false }) {
+function ThemeSwatch({ themeKey, active, onClick, detailed = false, onMouseEnter, onMouseLeave }) {
   const theme = themes[themeKey];
   const shellTheme = theme.shell || {};
 
@@ -176,20 +179,26 @@ function ThemeSwatch({ themeKey, active, onClick, detailed = false }) {
     <button
       type="button"
       onClick={() => onClick(themeKey)}
-      title={theme.name}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       aria-label={theme.name}
       className={[
         detailed
           ? 'w-full rounded-[1.1rem] border p-2 text-left transition-all hover:translate-y-[-1px]'
-          : 'group relative h-11 w-11 rounded-[1rem] border p-1.5 transition-all hover:scale-[1.04]',
-        active ? 'shadow-[0_0_0_1px_rgba(255,255,255,0.16)]' : '',
+          : 'group relative flex h-7 w-7 items-center justify-center rounded-full border shadow-sm transition-transform hover:scale-110',
+        active && !detailed ? 'shadow-[0_0_0_2px_rgba(255,255,255,0.7)]' : (!detailed ? 'hover:shadow-[0_0_0_1px_rgba(255,255,255,0.3)]' : ''),
+        active && detailed ? 'shadow-[0_0_0_1px_rgba(255,255,255,0.16)]' : '',
       ].join(' ')}
-      style={{
+      style={detailed ? {
         borderColor: active ? shellTheme.accent : shellTheme.panelBorder,
         background: shellTheme.panelBg,
+      } : {
+        borderColor: shellTheme.panelBorder,
+        background: theme.node?.rootBg || theme.background,
+        ...(active ? { outline: `2px solid ${shellTheme.accent}`, outlineOffset: '2px' } : {})
       }}
     >
-      {detailed ? (
+      {detailed && (
         <div>
           <ThemePreviewCanvas theme={theme} />
           <div className="mt-2">
@@ -201,27 +210,6 @@ function ThemeSwatch({ themeKey, active, onClick, detailed = false }) {
             </p>
           </div>
         </div>
-      ) : (
-        <>
-          <ThemePreviewCanvas theme={theme} compact />
-
-          <div className="pointer-events-none absolute left-[calc(100%+0.65rem)] top-1/2 z-30 w-56 -translate-y-1/2 rounded-[1.1rem] border p-2 opacity-0 shadow-2xl backdrop-blur-xl transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
-            style={{
-              borderColor: shellTheme.panelBorder,
-              background: shellTheme.panelStrongBg,
-            }}
-          >
-            <ThemePreviewCanvas theme={theme} />
-            <div className="mt-2 text-left">
-              <p className="text-sm font-semibold" style={{ color: shellTheme.panelText }}>
-                {theme.name}
-              </p>
-              <p className="mt-1 text-[11px] leading-4" style={{ color: shellTheme.panelMuted }}>
-                {theme.description}
-              </p>
-            </div>
-          </div>
-        </>
       )}
     </button>
   );
@@ -243,6 +231,7 @@ function DesktopToolRail({
   themeId,
   onThemeChange,
 }) {
+  const [activeTooltip, setActiveTooltip] = useState(null);
   const { fitView, screenToFlowPosition, zoomIn, zoomOut } = useReactFlow();
   const shellTheme = getTheme(themeId).shell || {};
   const buttonStyle = {
@@ -255,6 +244,11 @@ function DesktopToolRail({
     background: shellTheme.accentSoft || 'rgba(34,211,238,0.16)',
     color: shellTheme.panelText || '#e2e8f0',
     boxShadow: `0 14px 28px ${shellTheme.accentSoft || 'rgba(34,211,238,0.22)'}`,
+  };
+
+  const handleTooltipEnter = (event, text) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setActiveTooltip({ text, x: rect.right + 12, y: rect.top + rect.height / 2 });
   };
 
   const addNodeAtCenter = (nodeType) => {
@@ -271,28 +265,44 @@ function DesktopToolRail({
     <Panel
       position="top-left"
       className="pointer-events-none ml-3 mt-3 hidden lg:block"
-      style={{ height: 'calc(100% - 1.5rem)' }}
+      style={{ height: 'calc(100% - 1.5rem)', zIndex: 100 }}
     >
       <div className="workspace-tool-rail-scroll pointer-events-auto">
         <div className="workspace-tool-rail">
         <div className="workspace-tool-group pointer-events-auto" style={{ borderColor: shellTheme.panelBorder, background: shellTheme.panelStrongBg }}>
-          <div className="flex flex-col gap-2">
-            <ToolbarButton compact showLabel={false} icon={Square} label="Nút chuẩn" onClick={() => addNodeAtCenter(NODE_TYPES.STANDARD)} buttonStyle={buttonStyle} activeStyle={activeStyle} />
-            <ToolbarButton compact showLabel={false} icon={Type} label="Văn bản" onClick={() => addNodeAtCenter(NODE_TYPES.TEXT)} buttonStyle={buttonStyle} activeStyle={activeStyle} />
-            <ToolbarButton compact showLabel={false} icon={ImagePlus} label="Hình ảnh" onClick={() => addNodeAtCenter(NODE_TYPES.IMAGE)} buttonStyle={buttonStyle} activeStyle={activeStyle} />
-            <ToolbarButton compact showLabel={false} icon={Diamond} label="Quyết định" onClick={() => addNodeAtCenter(NODE_TYPES.DECISION)} buttonStyle={buttonStyle} activeStyle={activeStyle} />
-            <ToolbarButton compact showLabel={false} icon={Link2} label="Nối cạnh" active={toolMode === 'connect'} onClick={() => setToolMode((current) => (current === 'connect' ? 'select' : 'connect'))} buttonStyle={buttonStyle} activeStyle={activeStyle} />
-            <ToolbarButton compact showLabel={false} icon={LayoutGrid} label="Bố cục tia" onClick={() => { onAutoLayout(); requestAnimationFrame(() => fitView({ padding: 0.2, duration: 350 })); }} buttonStyle={buttonStyle} activeStyle={activeStyle} />
+          <div className="mb-2 px-1 text-center">
+            <div className="flex items-center justify-center">
+              <LayoutGrid className="h-4 w-4" style={{ color: shellTheme.accent }} />
+            </div>
+            <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.22em]" style={{ color: shellTheme.panelMuted }}>
+              Thêm
+            </p>
+          </div>
+          <div className="flex flex-col items-center gap-2">
+            <ToolbarButton compact showLabel={false} icon={Square} label="Nút chuẩn" onClick={() => addNodeAtCenter(NODE_TYPES.STANDARD)} buttonStyle={buttonStyle} activeStyle={activeStyle} onMouseEnter={(e) => handleTooltipEnter(e, 'Nút chuẩn')} onMouseLeave={() => setActiveTooltip(null)} />
+            <ToolbarButton compact showLabel={false} icon={Type} label="Văn bản" onClick={() => addNodeAtCenter(NODE_TYPES.TEXT)} buttonStyle={buttonStyle} activeStyle={activeStyle} onMouseEnter={(e) => handleTooltipEnter(e, 'Văn bản')} onMouseLeave={() => setActiveTooltip(null)} />
+            <ToolbarButton compact showLabel={false} icon={ImagePlus} label="Hình ảnh" onClick={() => addNodeAtCenter(NODE_TYPES.IMAGE)} buttonStyle={buttonStyle} activeStyle={activeStyle} onMouseEnter={(e) => handleTooltipEnter(e, 'Hình ảnh')} onMouseLeave={() => setActiveTooltip(null)} />
+            <ToolbarButton compact showLabel={false} icon={Diamond} label="Quyết định" onClick={() => addNodeAtCenter(NODE_TYPES.DECISION)} buttonStyle={buttonStyle} activeStyle={activeStyle} onMouseEnter={(e) => handleTooltipEnter(e, 'Nút quyết định')} onMouseLeave={() => setActiveTooltip(null)} />
+            <ToolbarButton compact showLabel={false} icon={Link2} label="Nối cạnh" active={toolMode === 'connect'} onClick={() => setToolMode((current) => (current === 'connect' ? 'select' : 'connect'))} buttonStyle={buttonStyle} activeStyle={activeStyle} onMouseEnter={(e) => handleTooltipEnter(e, 'Chế độ nối cạnh')} onMouseLeave={() => setActiveTooltip(null)} />
+            <ToolbarButton compact showLabel={false} icon={LayoutGrid} label="Bố cục tia" onClick={() => { onAutoLayout(); requestAnimationFrame(() => fitView({ padding: 0.2, duration: 350 })); }} buttonStyle={buttonStyle} activeStyle={activeStyle} onMouseEnter={(e) => handleTooltipEnter(e, 'Sắp xếp tự động')} onMouseLeave={() => setActiveTooltip(null)} />
           </div>
         </div>
         <div className="workspace-tool-group pointer-events-auto" style={{ borderColor: shellTheme.panelBorder, background: shellTheme.panelStrongBg }}>
-          <div className="flex flex-col gap-2">
-            <ToolbarButton compact showLabel={false} icon={Undo2} label="Hoàn tác" onClick={onUndo} disabled={!canUndo} buttonStyle={buttonStyle} activeStyle={activeStyle} />
-            <ToolbarButton compact showLabel={false} icon={Redo2} label="Làm lại" onClick={onRedo} disabled={!canRedo} buttonStyle={buttonStyle} activeStyle={activeStyle} />
-            <ToolbarButton compact showLabel={false} icon={Maximize2} label="Vừa khung" onClick={() => fitView({ padding: 0.2, duration: 350 })} buttonStyle={buttonStyle} activeStyle={activeStyle} />
-            <ToolbarButton compact showLabel={false} icon={ZoomOut} label="Thu nhỏ" onClick={() => zoomOut({ duration: 250 })} buttonStyle={buttonStyle} activeStyle={activeStyle} />
-            <ToolbarButton compact showLabel={false} icon={ZoomIn} label="Phóng to" onClick={() => zoomIn({ duration: 250 })} buttonStyle={buttonStyle} activeStyle={activeStyle} />
-            <ToolbarButton compact showLabel={false} icon={ImagePlus} label="Quét ghi chú" onClick={onOpenUploadPanel} buttonStyle={buttonStyle} activeStyle={activeStyle} />
+          <div className="mb-2 px-1 text-center">
+            <div className="flex items-center justify-center">
+              <Maximize2 className="h-4 w-4" style={{ color: shellTheme.accent }} />
+            </div>
+            <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.22em]" style={{ color: shellTheme.panelMuted }}>
+              Công cụ
+            </p>
+          </div>
+          <div className="flex flex-col items-center gap-2">
+            <ToolbarButton compact showLabel={false} icon={Undo2} label="Hoàn tác" onClick={onUndo} disabled={!canUndo} buttonStyle={buttonStyle} activeStyle={activeStyle} onMouseEnter={(e) => handleTooltipEnter(e, 'Hoàn tác (Undo)')} onMouseLeave={() => setActiveTooltip(null)} />
+            <ToolbarButton compact showLabel={false} icon={Redo2} label="Làm lại" onClick={onRedo} disabled={!canRedo} buttonStyle={buttonStyle} activeStyle={activeStyle} onMouseEnter={(e) => handleTooltipEnter(e, 'Làm lại (Redo)')} onMouseLeave={() => setActiveTooltip(null)} />
+            <ToolbarButton compact showLabel={false} icon={Maximize2} label="Vừa khung" onClick={() => fitView({ padding: 0.2, duration: 350 })} buttonStyle={buttonStyle} activeStyle={activeStyle} onMouseEnter={(e) => handleTooltipEnter(e, 'Vừa khung hình')} onMouseLeave={() => setActiveTooltip(null)} />
+            <ToolbarButton compact showLabel={false} icon={ZoomOut} label="Thu nhỏ" onClick={() => zoomOut({ duration: 250 })} buttonStyle={buttonStyle} activeStyle={activeStyle} onMouseEnter={(e) => handleTooltipEnter(e, 'Thu nhỏ')} onMouseLeave={() => setActiveTooltip(null)} />
+            <ToolbarButton compact showLabel={false} icon={ZoomIn} label="Phóng to" onClick={() => zoomIn({ duration: 250 })} buttonStyle={buttonStyle} activeStyle={activeStyle} onMouseEnter={(e) => handleTooltipEnter(e, 'Phóng to')} onMouseLeave={() => setActiveTooltip(null)} />
+            <ToolbarButton compact showLabel={false} icon={ImagePlus} label="Quét ghi chú" onClick={onOpenUploadPanel} buttonStyle={buttonStyle} activeStyle={activeStyle} onMouseEnter={(e) => handleTooltipEnter(e, 'AI: Quét từ ảnh')} onMouseLeave={() => setActiveTooltip(null)} />
           </div>
         </div>
         <div className="workspace-tool-group pointer-events-auto" style={{ borderColor: shellTheme.panelBorder, background: shellTheme.panelStrongBg }}>
@@ -309,7 +319,7 @@ function DesktopToolRail({
           </div>
           <div className="flex flex-col items-center gap-2">
             {Object.values(THEME_IDS).map((id) => (
-              <ThemeSwatch key={id} themeKey={id} active={themeId === id} onClick={onThemeChange} />
+              <ThemeSwatch key={id} themeKey={id} active={themeId === id} onClick={onThemeChange} onMouseEnter={(e) => handleTooltipEnter(e, getTheme(id).name)} onMouseLeave={() => setActiveTooltip(null)} />
             ))}
           </div>
           <div className="mt-3 flex justify-center">
@@ -322,11 +332,29 @@ function DesktopToolRail({
               onClick={onSave}
               buttonStyle={{ borderColor: shellTheme.accent, background: shellTheme.accentSoft, color: shellTheme.panelText }}
               activeStyle={activeStyle}
+              onMouseEnter={(e) => handleTooltipEnter(e, saveState === 'saving' ? 'Đang lưu...' : 'Lưu thay đổi')}
+              onMouseLeave={() => setActiveTooltip(null)}
             />
           </div>
         </div>
         </div>
       </div>
+      
+      {activeTooltip && (
+        <div
+          className="pointer-events-none fixed z-[999999] -translate-y-1/2 rounded-lg border px-2.5 py-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in duration-100"
+          style={{
+            left: activeTooltip.x,
+            top: activeTooltip.y,
+            borderColor: shellTheme.panelBorder,
+            background: shellTheme.panelStrongBg,
+          }}
+        >
+          <span className="whitespace-nowrap text-xs font-semibold" style={{ color: shellTheme.panelText }}>
+            {activeTooltip.text}
+          </span>
+        </div>
+      )}
     </Panel>
   );
 }
@@ -954,6 +982,10 @@ export default function MindMapViewer({
           onClose={() => setSelectedEdge(null)}
           onUpdate={(updatedEdge) => {
             onEdgeUpdate(updatedEdge);
+            setSelectedEdge(null);
+          }}
+          onDelete={(edgeId) => {
+            setEdges((currentEdges) => currentEdges.filter((e) => e.id !== edgeId));
             setSelectedEdge(null);
           }}
         />

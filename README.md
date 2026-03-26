@@ -122,6 +122,3 @@ npm run dev
 
 
 Built with ✨ & 💻 by justccuong
-
-
-```
