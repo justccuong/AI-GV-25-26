@@ -1,113 +1,129 @@
+````markdown
+# 🤖 AI-GV-25-26 | Intelligent Education Assistant 🚀
+
+<p align="center">
+  <a href="https://ai-gv-25-26.onrender.com/">
+    <img src="https://img.shields.io/badge/Status-Live-success?style=for-the-badge&logo=render&logoColor=white" alt="Status">
+  </a>
+  <img src="https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI">
+  <img src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React">
+  <img src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind">
+  <img src="https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white" alt="Postgres">
+  <img src="https://img.shields.io/badge/Google_Gemini-4285F4?style=for-the-badge&logo=google&logoColor=white" alt="Gemini">
+</p>
+
+---
+
+## 🌟 Project Overview
+**AI-GV-25-26** là một nền tảng giáo dục thông minh thế hệ mới. Dự án kết hợp sức mạnh của **FastAPI** và **React** cùng trí tuệ nhân tạo từ **Google Gemini**, giúp tạo ra các sơ đồ tư duy (ReactFlow), quản lý dữ liệu học tập và xác thực bảo mật qua JWT.
+
+> **💡 Status Update:** Hệ thống hiện đang được triển khai trên **Onrender** và được giám sát 24/7 để đảm bảo không bị ngủ đông (No-Idle mode activated). 😉
+
+---
+
+## 🏗 System Architecture
+
+### 📂 Directory Structure
+```bash
 v2 AI-GV-25-26/
-├── backend/ # FastAPI Application
-│   ├── main.py # Main FastAPI app with endpoints
-│   ├── auth.py # JWT authentication logic
-│   ├── database.py # Database configuration
-│   ├── models.py # SQLAlchemy database models
+├── 📂 backend/             # FastAPI Application (Python)
+│   ├── main.py             # App entry & Endpoints
+│   ├── auth.py             # JWT & Security logic
+│   ├── database.py         # DB connection config
+│   └── models.py           # SQLAlchemy models
+├── 📂 frontend/            # React + Vite Application (JS)
+│   ├── src/                # UI Components & Hooks
+│   └── tailwind.config.js  # Styling config
+└── 📄 README.md            # Documentation
+````
 
-Create virtual environment:
+-----
 
-bash
+## 🚀 Installation & Setup
+
+### 🛰 1. Backend Setup
+
+```bash
+# Di chuyển vào thư mục backend
+cd backend
+
+# Tạo và kích hoạt môi trường ảo
 python -m venv .venv
-source .venv/bin/activate # On Windows: .venv\Scripts\activate
+# Trên Windows: .venv\Scripts\activate
+source .venv/bin/activate 
 
-Install dependencies:
-
-bash
+# Cài đặt các thư viện cần thiết
 pip install -r requirements.txt
+```
 
-Configure environment:
-Create a .env file in the backend/ directory:
+**Configuration:** Tạo file `.env` trong thư mục `backend/`:
 
-Code
+```env
 DATABASE_URL=postgresql://user:password@localhost/dbname
 JWT_SECRET_KEY=your_secret_key_here
 GOOGLE_API_KEY=your_google_api_key
+```
 
-Run FastAPI server:
+### 🎨 2. Frontend Setup
 
-bash
-python -m uvicorn main:app --reload
-
-API available at: http://localhost:8000
-Docs available at: http://localhost:8000/docs
-
-Frontend Setup
-Navigate to frontend:
-
-bash
+```bash
+# Di chuyển vào thư mục frontend
 cd frontend
 
-Install dependencies:
-
-bash
+# Cài đặt package
 npm install
+```
 
-Start development server:
+-----
 
-bash
-npm run start-front
+## ⚡ Running the App
 
-App available at: http://localhost:5173
+### **Option A: Run Both (Concurrent)**
 
-Running Both Services
-From the frontend/ directory:
+Cách nhanh nhất để dev cả 2 cùng lúc:
 
-bash
+```bash
+cd frontend
 npm run dev
+```
 
-This runs both Vite (frontend) and Uvicorn (backend) concurrently.
+### **Option B: Run Separately**
 
-📝 Available NPM Scripts
-Command             Description
-npm run dev        Start frontend and backend together
-npm run start-front Start Vite dev server only
-npm run start-back  Start FastAPI backend only
-npm run build      Build React app for production
-npm run lint       Run ESLint checks
-npm run preview    Preview production build
+| Service | Command | URL |
+| :--- | :--- | :--- |
+| **Backend** | `python -m uvicorn main:app --reload` | `http://localhost:8000` |
+| **Frontend** | `npm run start-front` | `http://localhost:5173` |
+| **API Docs** | - | `http://localhost:8000/docs` |
 
-🌐 Deployment
-Frontend (Vercel)
-The frontend is configured for automatic deployment to Vercel:
-Connect your GitHub repository to Vercel
-It will automatically detect vite.config.js and deploy
-Backend
-Deploy the FastAPI backend to:
-Railway
-Heroku
-PythonAnywhere
-AWS (Elastic Beanstalk, EC2)
-DigitalOcean
+-----
 
-🔑 Key Features
-✅ RESTful API with FastAPI
-✅ Async/await support for high performance
-✅ JWT authentication system
-✅ PostgreSQL database integration
-✅ React components with modern hooks
-✅ Responsive Tailwind CSS styling
-✅ Graph/diagram visualization with ReactFlow
-✅ Google Generative AI integration
-✅ PDF export functionality
-✅ Hot module reloading (HMR) in development
+## 🔑 Key Features
 
-📦 Dependencies
-Core Backend Requirements:
-fastapi, uvicorn, sqlalchemy, psycopg2, pyjwt, google-generativeai
-Core Frontend Dependencies:
-react, react-dom, react-router-dom, axios, tailwindcss, vite
+  - ✨ **Full-stack Flow:** Tích hợp mượt mà giữa Python Backend và React Frontend.
+  - 🧠 **AI-Powered:** Phân tích nội dung giáo dục thông qua Google Generative AI.
+  - 🔐 **Secure:** Hệ thống đăng nhập và phân quyền bằng JWT (JSON Web Tokens).
+  - 📊 **Visualized:** Vẽ sơ đồ, đồ thị tương tác với ReactFlow.
+  - 📄 **Exportable:** Hỗ trợ xuất dữ liệu ra PDF nhanh chóng.
+  - 📱 **Modern UI:** Responsive hoàn toàn với Tailwind CSS.
 
-📄 License
-This project is licensed under the MIT License.
+-----
 
-🤝 Contributing
-Contributions are welcome! Please:
-Fork the repository
-Create a feature branch (git checkout -b feature/amazing-feature)
-Commit your changes (git commit -m 'Add amazing feature')
-Push to the branch (git push origin feature/amazing-feature)
-Open a Pull Request
+## 🌐 Deployment
 
-📧 Contact
-For questions or feedback, please open an issue on GitHub.
+  - **Frontend:** Khuyến khích dùng [Vercel](https://vercel.com/).
+  - **Backend:** Triển khai trên [Onrender](https://render.com/), Railway hoặc AWS.
+
+-----
+
+## 🤝 Contributing & License
+
+  - Dự án được phát hành theo giấy phép **MIT License**.
+  - Mọi đóng góp vui lòng mở **Pull Request** hoặc tạo **Issue** trên GitHub.
+
+-----
+
+\<p align="center"\>
+Built with ✨ & 💻 by \<b\>Hoàng tử\</b\>
+\</p\>
+
+```
