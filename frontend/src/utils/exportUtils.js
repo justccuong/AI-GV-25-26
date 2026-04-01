@@ -162,6 +162,7 @@ async function captureDiagramCanvas({ container, snapshot, pixelRatio = 1.5 }) {
       width: size,
       height: size,
       filter: shouldIncludeExportNode,
+      imagePlaceholder: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', // 1x1 transparent pixel
       backgroundColor:
         typeof theme.background === 'string' && !theme.background.includes('gradient(')
           ? theme.background
