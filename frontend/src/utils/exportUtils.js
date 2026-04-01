@@ -42,99 +42,7 @@ function downloadDataUrl(dataUrl, filename) {
   link.remove();
 }
 
-function getRootNodeId(nodes, edges) {
-  const explicitRoot = nodes.find((node) => node.data?.isRoot);
 
-  if (explicitRoot) {
-    return String(explicitRoot.id);
-  }
-
-  const incoming = new Map(nodes.map((node) => [String(node.id), 0]));
-  edges.forEach((edge) => {
-    const target = String(edge.target);
-    if (incoming.has(target)) {
-      incoming.set(target, (incoming.get(target) || 0) + 1);
-    }
-  });
-
-  return String(nodes.find((node) => (incoming.get(String(node.id)) || 0) === 0)?.id || nodes[0]?.id || '');
-}
-
-function sortNodeIds(nodeIds, nodeMap) {
-  return [...nodeIds].sort((leftId, rightId) => {
-    const left = nodeMap.get(String(leftId));
-    const right = nodeMap.get(String(rightId));
-
-    if (!left || !right) {
-      return 0;
-    }
-
-    const topDelta = (left.position?.y || 0) - (right.position?.y || 0);
-    if (topDelta !== 0) {
-      return topDelta;
-    }
-
-    return (left.position?.x || 0) - (right.position?.x || 0);
-  });
-}
-
-function buildOutline(snapshot) {
-  const nodes = Array.isArray(snapshot?.nodes) ? snapshot.nodes : [];
-  const edges = Array.isArray(snapshot?.edges) ? snapshot.edges : [];
-  const nodeMap = new Map(nodes.map((node) => [String(node.id), node]));
-  const adjacency = new Map(nodes.map((node) => [String(node.id), []]));
-
-  edges.forEach((edge) => {
-    const source = String(edge.source);
-    const target = String(edge.target);
-
-    if (adjacency.has(source) && nodeMap.has(target)) {
-      adjacency.get(source).push(target);
-    }
-  });
-
-  Array.from(adjacency.entries()).forEach(([nodeId, childIds]) => {
-    adjacency.set(nodeId, sortNodeIds(childIds, nodeMap));
-  });
-
-  const visited = new Set();
-  const rootId = getRootNodeId(nodes, edges);
-
-  const renderNode = (nodeId, depth = 0) => {
-    if (!nodeId || visited.has(nodeId) || !nodeMap.has(nodeId)) {
-      return [];
-    }
-
-    visited.add(nodeId);
-    const node = nodeMap.get(nodeId);
-    const label = stripHtml(node.data?.label || 'Node chua dat ten');
-    const lines = [{ depth, label }];
-
-    (adjacency.get(nodeId) || []).forEach((childId) => {
-      lines.push(...renderNode(childId, depth + 1));
-    });
-
-    return lines;
-  };
-
-  const lines = renderNode(rootId);
-  const disconnected = sortNodeIds(
-    nodes.map((node) => String(node.id)).filter((nodeId) => !visited.has(nodeId)),
-    nodeMap
-  );
-
-  disconnected.forEach((nodeId) => {
-    lines.push(...renderNode(nodeId, lines.length ? 1 : 0));
-  });
-
-  return lines;
-}
-
-function buildMarkdownOutline(lines) {
-  return lines
-    .map(({ depth, label }) => `${'  '.repeat(depth)}- ${label}`)
-    .join('\n');
-}
 
 function getSnapshotBounds(nodes) {
   const initial = {
@@ -275,44 +183,7 @@ export async function exportDiagramPng({ title, snapshot, container }) {
   downloadDataUrl(imageUrl, buildFilename(title, 'png'));
 }
 
-export function exportDiagramJson({ title, diagramId, snapshot }) {
-  const payload = {
-    version: 1,
-    diagramId,
-    title,
-    exportedAt: new Date().toISOString(),
-    data: snapshot,
-  };
 
-  downloadBlob(
-    new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' }),
-    buildFilename(title, 'json')
-  );
-}
-
-export function exportDiagramMarkdown({ title, diagramId, snapshot }) {
-  const lines = buildOutline(snapshot);
-  const nodeCount = Array.isArray(snapshot?.nodes) ? snapshot.nodes.length : 0;
-  const edgeCount = Array.isArray(snapshot?.edges) ? snapshot.edges.length : 0;
-  const content = [
-    `# ${title || 'Mindmap Export'}`,
-    '',
-    `- Diagram ID: ${diagramId || 'draft'}`,
-    `- Exported at: ${new Date().toISOString()}`,
-    `- Nodes: ${nodeCount}`,
-    `- Edges: ${edgeCount}`,
-    '',
-    '## Outline',
-    '',
-    buildMarkdownOutline(lines) || '- So do hien chua co noi dung.',
-    '',
-  ].join('\n');
-
-  downloadBlob(
-    new Blob([content], { type: 'text/markdown;charset=utf-8' }),
-    buildFilename(title, 'md')
-  );
-}
 
 export async function exportDiagramPdf({ title, snapshot, container }) {
   const imageUrl = await captureDiagramCanvas({ container, snapshot, pixelRatio: 2 });

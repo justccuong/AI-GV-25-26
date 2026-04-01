@@ -85,135 +85,7 @@ function ToolbarButton({
   );
 }
 
-function ThemePreviewCanvas({ theme, compact = false }) {
-  const shellTheme = theme.shell || {};
-  const edgeColor = theme.edge?.stroke || shellTheme.accent;
 
-  if (compact) {
-    return (
-      <div
-        className="h-full w-full overflow-hidden rounded-[0.8rem] border p-1"
-        style={{
-          borderColor: shellTheme.panelBorder,
-          background: theme.background,
-        }}
-      >
-        <div className="flex h-full flex-col gap-1">
-          <div
-            className="h-2 rounded-full border"
-            style={{
-              borderColor: shellTheme.panelBorder,
-              background: shellTheme.accentSoft,
-            }}
-          />
-
-          <div className="grid min-h-0 flex-1 grid-cols-[1.3fr_0.9fr] gap-1">
-            <div
-              className="rounded-[0.55rem]"
-              style={{
-                background: theme.node.rootBg,
-                border: theme.node.rootBorder,
-                boxShadow: theme.node.boxShadow,
-              }}
-            />
-
-            <div
-              className="rounded-[0.55rem] border"
-              style={{
-                background: theme.node.childBg,
-                borderColor: edgeColor,
-              }}
-            />
-          </div>
-
-          <div
-            className="h-1 rounded-full opacity-80"
-            style={{ background: edgeColor }}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className="rounded-[1rem] border p-2"
-      style={{
-        borderColor: shellTheme.panelBorder,
-        background: theme.background,
-      }}
-    >
-      <div
-        className="mb-2 rounded-[0.8rem] px-2 py-1.5"
-        style={{
-          background: theme.node.rootBg,
-          border: theme.node.rootBorder,
-        }}
-      >
-        <div
-          className="h-1.5 w-8 rounded-full opacity-80"
-          style={{ background: theme.node.rootTextColor }}
-        />
-      </div>
-
-      <div className="flex items-center gap-1.5">
-        <div
-          className="h-3 w-3 rounded-full border"
-          style={{
-            background: theme.node.childBg,
-            borderColor: edgeColor,
-          }}
-        />
-        <div className="h-[2px] flex-1 rounded-full" style={{ background: edgeColor }} />
-        <div className="h-2.5 w-2.5 rounded-full" style={{ background: shellTheme.accent }} />
-      </div>
-    </div>
-  );
-}
-
-function ThemeSwatch({ themeKey, active, onClick, detailed = false, onMouseEnter, onMouseLeave }) {
-  const theme = themes[themeKey];
-  const shellTheme = theme.shell || {};
-
-  return (
-    <button
-      type="button"
-      onClick={() => onClick(themeKey)}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      aria-label={theme.name}
-      className={[
-        detailed
-          ? 'w-full rounded-[1.1rem] border p-2 text-left transition-all hover:translate-y-[-1px]'
-          : 'group relative flex h-7 w-7 items-center justify-center rounded-full border shadow-sm transition-transform hover:scale-110',
-        active && !detailed ? 'shadow-[0_0_0_2px_rgba(255,255,255,0.7)]' : (!detailed ? 'hover:shadow-[0_0_0_1px_rgba(255,255,255,0.3)]' : ''),
-        active && detailed ? 'shadow-[0_0_0_1px_rgba(255,255,255,0.16)]' : '',
-      ].join(' ')}
-      style={detailed ? {
-        borderColor: active ? shellTheme.accent : shellTheme.panelBorder,
-        background: shellTheme.panelBg,
-      } : {
-        borderColor: shellTheme.panelBorder,
-        background: theme.node?.rootBg || theme.background,
-        ...(active ? { outline: `2px solid ${shellTheme.accent}`, outlineOffset: '2px' } : {})
-      }}
-    >
-      {detailed && (
-        <div>
-          <ThemePreviewCanvas theme={theme} />
-          <div className="mt-2">
-            <p className="text-sm font-semibold" style={{ color: shellTheme.panelText }}>
-              {theme.name}
-            </p>
-            <p className="mt-1 text-[11px] leading-4" style={{ color: shellTheme.panelMuted }}>
-              {theme.description}
-            </p>
-          </div>
-        </div>
-      )}
-    </button>
-  );
-}
 
 function DesktopToolRail({
   containerRef,
@@ -229,7 +101,6 @@ function DesktopToolRail({
   onSave,
   saveState,
   themeId,
-  onThemeChange,
 }) {
   const [activeTooltip, setActiveTooltip] = useState(null);
   const { fitView, screenToFlowPosition, zoomIn, zoomOut } = useReactFlow();
@@ -306,23 +177,7 @@ function DesktopToolRail({
           </div>
         </div>
         <div className="workspace-tool-group pointer-events-auto" style={{ borderColor: shellTheme.panelBorder, background: shellTheme.panelStrongBg }}>
-          <div className="mb-2 px-1 text-center">
-            <div className="flex items-center justify-center">
-              <Palette className="h-4 w-4" style={{ color: shellTheme.accent }} />
-            </div>
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.22em]" style={{ color: shellTheme.panelMuted }}>
-              Chủ đề
-            </p>
-            <p className="mt-1 text-[11px] font-medium" style={{ color: shellTheme.panelText }}>
-              {getTheme(themeId).name}
-            </p>
-          </div>
-          <div className="flex flex-col items-center gap-2">
-            {Object.values(THEME_IDS).map((id) => (
-              <ThemeSwatch key={id} themeKey={id} active={themeId === id} onClick={onThemeChange} onMouseEnter={(e) => handleTooltipEnter(e, getTheme(id).name)} onMouseLeave={() => setActiveTooltip(null)} />
-            ))}
-          </div>
-          <div className="mt-3 flex justify-center">
+          <div className="flex justify-center">
             <ToolbarButton
               compact
               showLabel={false}
@@ -375,7 +230,6 @@ function MobileToolDrawer({
   onSave,
   saveState,
   themeId,
-  onThemeChange,
 }) {
   const { fitView, screenToFlowPosition, zoomIn, zoomOut } = useReactFlow();
   const shellTheme = getTheme(themeId).shell || {};
@@ -470,17 +324,6 @@ function MobileToolDrawer({
           <ToolbarButton icon={ZoomIn} label="Phóng to" onClick={() => zoomIn({ duration: 200 })} buttonStyle={sharedButtonStyle} activeStyle={sharedActiveStyle} />
         </div>
 
-        <div className="mt-3 rounded-[1.35rem] border px-3 py-3" style={{ borderColor: shellTheme.panelBorder }}>
-          <div className="mb-3 flex items-center gap-2 text-sm" style={{ color: shellTheme.panelText }}>
-            <Palette className="h-4 w-4" style={{ color: shellTheme.accent }} />
-            <span>Chủ đề canvas</span>
-          </div>
-          <div className="grid gap-2">
-            {Object.values(THEME_IDS).map((id) => (
-              <ThemeSwatch key={id} themeKey={id} active={themeId === id} onClick={onThemeChange} detailed />
-            ))}
-          </div>
-        </div>
 
         <button
           type="button"
@@ -525,7 +368,6 @@ export default function MindMapViewer({
   setNodes,
   setEdges,
   themeId,
-  onThemeChange,
   onNodeDataChange,
   onEdgeUpdate,
   onAutoLayout,
@@ -848,7 +690,6 @@ export default function MindMapViewer({
           onSave={onSave}
           saveState={saveState}
           themeId={themeId}
-          onThemeChange={onThemeChange}
         />
 
         <MobileToolDrawer
@@ -867,7 +708,6 @@ export default function MindMapViewer({
           onSave={onSave}
           saveState={saveState}
           themeId={themeId}
-          onThemeChange={onThemeChange}
         />
 
         <AutoFitController fitViewNonce={fitViewNonce} />

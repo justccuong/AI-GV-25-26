@@ -1,0 +1,35 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python / Backend
+backend/.venv/
+backend/venv/
+backend/__pycache__/
+backend/*.pyc
+backend/.env
+backend/node_modules/
+backend/package-lock.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build/Dist (if applicable at root)
+dist/
+build/

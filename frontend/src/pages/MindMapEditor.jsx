@@ -1,12 +1,10 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { applyEdgeChanges, applyNodeChanges } from 'reactflow';
 import {
   AlertCircle,
   Bot,
   CheckCircle2,
   Download,
-  FileJson,
-  FileText,
   Image as ImageIcon,
   Loader2,
   PanelLeftOpen,
@@ -31,8 +29,6 @@ import MindMapViewer from '../components/MindMapViewer';
 import UploadPanel from '../components/UploadPanel';
 import {
   exportDiagramPng,
-  exportDiagramJson,
-  exportDiagramMarkdown,
   exportDiagramPdf,
 } from '../utils/exportUtils';
 import {
@@ -742,23 +738,11 @@ export default function MindMapEditor() {
       }
 
       try {
-        if (format === 'json') {
-          exportDiagramJson({
-            title: resolvedTitle,
-            diagramId: currentDiagramId,
-            snapshot,
-          });
-        } else if (format === 'png') {
+        if (format === 'png') {
           await exportDiagramPng({
             title: resolvedTitle,
             snapshot,
             container: canvasContainerRef.current,
-          });
-        } else if (format === 'markdown') {
-          exportDiagramMarkdown({
-            title: resolvedTitle,
-            diagramId: currentDiagramId,
-            snapshot,
           });
         } else {
           await exportDiagramPdf({
@@ -931,7 +915,7 @@ export default function MindMapEditor() {
                       Export
                     </p>
                     <p className="mt-1 text-xs leading-5" style={{ color: shellTheme.panelMuted }}>
-                      PNG chụp đúng canvas hiện tại, PDF là ảnh canvas trong tài liệu, JSON và Markdown dành cho lưu trữ.
+                      PNG chụp đúng canvas hiện tại, PDF là ảnh canvas trong tài liệu.
                     </p>
                   </div>
 
@@ -961,32 +945,6 @@ export default function MindMapEditor() {
                     >
                       <Printer className="h-4 w-4" style={{ color: shellTheme.accent }} />
                       PDF
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleExport('json')}
-                      className="flex w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left text-sm font-medium transition-colors hover:brightness-105"
-                      style={{
-                        borderColor: shellTheme.panelBorder,
-                        background: shellTheme.panelBg,
-                        color: shellTheme.panelText,
-                      }}
-                    >
-                      <FileJson className="h-4 w-4" style={{ color: shellTheme.accent }} />
-                      JSON
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleExport('markdown')}
-                      className="flex w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left text-sm font-medium transition-colors hover:brightness-105"
-                      style={{
-                        borderColor: shellTheme.panelBorder,
-                        background: shellTheme.panelBg,
-                        color: shellTheme.panelText,
-                      }}
-                    >
-                      <FileText className="h-4 w-4" style={{ color: shellTheme.accent }} />
-                      Markdown
                     </button>
                   </div>
                 </div>
