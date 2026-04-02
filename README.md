@@ -115,7 +115,6 @@ npm run dev
 
 ## 🤝 Contributing & License
 
-  - Dự án được phát hành theo giấy phép **MIT License**.
   - Mọi đóng góp vui lòng mở **Pull Request** hoặc tạo **Issue** trên GitHub.
 
 -----
